@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Werewolf Standby Roster</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Rye&display=swap" rel="stylesheet">
+  
+  <!-- Supabase JS -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <!-- Custom Configuration for Tailwind -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'western': ['Rye', 'cursive', "Microsoft YaHei"],
+            'serif': ['Playfair Display', 'serif', "Microsoft YaHei"],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #2D1B11;
+      /* Rich Wooden texture background */
+      background-image: 
+        repeating-linear-gradient(
+          to right,
+          rgba(0, 0, 0, 0.1),
+          rgba(0, 0, 0, 0.1) 2px,
+          transparent 2px,
+          transparent 15px
+        ),
+        linear-gradient(to bottom, #3E2415, #1A0D07);
+      font-family: 'Playfair Display', "Microsoft YaHei", serif;
+      color: #F9E596;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #scale-wrapper {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      transform-origin: center center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .board-container {
+      width: 1840px;
+      height: 1000px;
+      margin: 40px auto;
+      border: 15px solid #140A05;
+      border-radius: 20px;
+      background: linear-gradient(to bottom, #4A2E1B, #2D1B11);
+      box-shadow: 
+        inset 0 0 60px rgba(0,0,0,0.9),
+        0 10px 30px rgba(0,0,0,0.9);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin-bottom: 50px;
+      padding: 0 20px;
+    }
+
+    .side-plate {
+      background-image: url('assets/bjk.png');
+      background-size: 100% 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-color: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 20px 50px;
+      box-shadow: none;
+      color: #000;
+      font-weight: bold;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 200px;
+    }
+
+    .main-title {
+      font-family: 'Rye', cursive, "Microsoft YaHei";
+      font-size: 130px;
+      font-weight: bold;
+      color: #F9E596;
+      text-shadow: 6px 6px 15px rgba(0,0,0,0.9), 0 0 30px rgba(212,175,55,0.3);
+      letter-spacing: 20px;
+      background: -webkit-linear-gradient(#F9E596, #B8860B);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 8px 8px rgba(0,0,0,0.8));
+      margin: 0 40px;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 60px 40px;
+      width: 100%;
+      flex-grow: 1;
+      padding: 10px 30px;
+    }
+
+    .player-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .avatar-ring {
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      border: 8px solid #D4AF37;
+      box-shadow: 
+        0 15px 25px rgba(0,0,0,0.8),
+        inset 0 0 20px rgba(0,0,0,0.9);
+      position: relative;
+      background: #1A0D07;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .avatar-ring img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .seat-badge {
+      position: absolute;
+      top: 15px;
+      left: -15px;
+      background: linear-gradient(to bottom, #F9E596, #D4AF37);
+      border: 3px solid #3E2415;
+      color: #2D1B11;
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      font-size: 28px;
+      font-family: 'Rye', cursive;
+      box-shadow: 3px 3px 8px rgba(0,0,0,0.7);
+      transform: rotate(-10deg);
+      z-index: 20;
+    }
+
+    .name-plate {
+      margin-top: -25px;
+      background: linear-gradient(to bottom, #f4ebd8, #d4c4a8); /* Light parchment */
+      border: 4px solid #8D6E63;
+      border-radius: 8px;
+      width: 220px;
+      padding: 15px 5px 8px 5px;
+      text-align: center;
+      color: #2D1B11;
+      font-size: 26px;
+      font-weight: bold;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+      z-index: 10;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .identity-plate {
+      margin-top: -10px;
+      background: linear-gradient(to right, #2c3e50, #3498db);
+      border: 3px solid #D4AF37;
+      border-radius: 20px;
+      padding: 6px 30px;
+      color: white;
+      font-size: 22px;
+      font-weight: bold;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.7);
+      letter-spacing: 3px;
+      z-index: 15;
+    }
+
+    /* Colors for identities */
+    .identity-wolf { background: linear-gradient(to right, #8A1C1C, #B71C1C); }
+    .identity-god { background: linear-gradient(to right, #2E7D32, #4CAF50); }
+    .identity-villager { background: linear-gradient(to right, #F57F17, #FBC02D); color: #fff;}
+    .identity-unknown { background: linear-gradient(to right, #424242, #757575); }
+
+    /* Medals */
+    .medal-stamp {
+      position: absolute;
+      top: -15px;
+      right: -25px;
+      padding: 5px 10px;
+      border: 3px solid #5D4037;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 26px;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+      transform: rotate(15deg);
+      z-index: 30;
+      font-family: 'Playfair Display', serif;
+      letter-spacing: 2px;
+    }
+    .medal-mvp { background: linear-gradient(135deg, #FFD700, #DAA520); color: #8B0000; }
+    .medal-svp { background: linear-gradient(135deg, #E0E0E0, #9E9E9E); color: #1C1C1C; }
+
+    .footer {
+      position: absolute;
+      bottom: 15px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: #D4AF37;
+      font-size: 24px;
+      letter-spacing: 2px;
+      opacity: 0.9;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="scale-wrapper">
+    <div class="board-container">
+      
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div class="side-plate" style="width: 494px; height: 182px;">
+          <div class="text-4xl mb-2 tracking-widest text-black font-bold" id="left-banner-text">狼管家</div>
+          <div class="text-xl font-bold text-black opacity-80" id="setup-name">12人标准局</div>
+        </div>
+        
+        <div class="main-title" id="standby-title">出战表</div>
+        
+        <div class="side-plate" style="width: 494px; height: 182px; justify-content: center; align-items: center;">
+          <div class="text-4xl tracking-wider text-black font-bold" id="current-date">比赛时间: 20260430</div>
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div class="grid-container" id="roster-grid">
+        <!-- Generated by standby.js -->
+      </div>
+
+      <!-- Footer -->
+      <div class="footer" id="standby-footer-display">
+        狼管家 Studio · 沉浸式狼人杀体验
+      </div>
+    </div>
+  </div>
+
+  <script src="supabase-config.js"></script>
+  <script src="standby.js"></script>
+  <script>
+    // Auto-scale logic to fit any resolution
+    function autoScale() {
+      const wrapper = document.getElementById('scale-wrapper');
+      const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      wrapper.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', autoScale);
+    autoScale();
+  </script>
+</body>
+</html>

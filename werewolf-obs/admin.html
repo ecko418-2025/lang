@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>狼人杀 - 后台管理控制台</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Supabase JS -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  
+  <!-- Cropper.js CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
+
+  <!-- Tom Select (searchable dropdown) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+  <style>
+    /* Tom Select overrides */
+    .ts-wrapper.seat-player { padding: 0; }
+    .ts-control { border: 1px solid #8D6E63 !important; border-radius: 4px !important; background: #faf8f5 !important; font-size: 0.875rem; }
+    .ts-dropdown { border: 1px solid #8D6E63 !important; font-size: 0.875rem; }
+    .ts-dropdown .active { background: #8D6E63 !important; color: white !important; }
+  </style>
+
+  <style>
+    body {
+      background-color: #f4ebd8; /* Sepia light */
+      color: #3e2723;
+    }
+    .panel {
+      background: white;
+      border: 2px solid #8D6E63;
+      box-shadow: 4px 4px 0px #5D4037;
+      border-radius: 8px;
+    }
+    .btn-primary {
+      background-color: #5D4037;
+      color: #f4ebd8;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover {
+      background-color: #3e2723;
+    }
+    .btn-danger {
+      background-color: #b71c1c;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+    }
+    input, select {
+      border: 1px solid #8D6E63;
+      padding: 0.5rem;
+      border-radius: 4px;
+      background: #faf8f5;
+      width: 100%;
+    }
+    
+    /* Circular cropper mask */
+    .cropper-view-box,
+    .cropper-face {
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body class="p-6 font-sans">
+  <div class="max-w-7xl mx-auto space-y-6">
+    <h1 class="text-4xl font-bold mb-8 border-b-4 border-[#5D4037] pb-4">狼人杀后台管理界面</h1>
+
+    <!-- Top Sections -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      
+      <!-- Section A: Player Database Management -->
+      <div class="panel p-6 space-y-4">
+        <h2 class="text-2xl font-bold border-b border-[#8D6E63] pb-2">A. 玩家数据库</h2>
+        
+        <form id="add-player-form" class="space-y-3">
+          <div>
+            <label class="block text-sm font-bold mb-1">玩家 ID</label>
+            <input type="text" id="new-player-id" placeholder="输入玩家 ID">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">玩家名称</label>
+            <input type="text" id="new-player-name" required placeholder="输入玩家名称">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">头像图片（上传）</label>
+            <input type="file" id="new-player-avatar-file" accept="image/*" class="p-1">
+            <p class="text-xs text-gray-500 mt-1">请上传图片文件</p>
+          </div>
+          <button type="submit" class="btn-primary w-full">添加玩家</button>
+        </form>
+
+        <div class="mt-4 max-h-64 overflow-y-auto border border-[#8D6E63] rounded">
+          <table class="w-full text-left text-sm" id="players-table">
+            <thead class="bg-[#8D6E63] text-white">
+              <tr>
+                <th class="p-2">头像</th>
+                <th class="p-2">玩家信息</th>
+                <th class="p-2">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Section B: Game Configuration -->
+      <div class="panel p-6 space-y-4">
+        <h2 class="text-2xl font-bold border-b border-[#8D6E63] pb-2">B. 游戏版型配置</h2>
+        
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm font-bold mb-1">保存的版型库</label>
+            <select id="config-setup-select" class="mb-2">
+              <option value="">-- 自定义新版型 --</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">版型名称</label>
+            <input type="text" id="config-setup-name" placeholder="例如：12人预女猎守">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">神职 (逗号或空格隔开)</label>
+            <input type="text" id="config-gods" placeholder="预言家,女巫,猎人,守卫" value="预言家,女巫,猎人,守卫">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">狼人 (逗号或空格隔开)</label>
+            <input type="text" id="config-wolves" placeholder="狼人,狼人,狼人,狼人" value="狼人,狼人,狼人,狼人">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">平民 (逗号或空格隔开)</label>
+            <input type="text" id="config-villagers" placeholder="平民,平民,平民,平民" value="平民,平民,平民,平民">
+          </div>
+          
+          <div class="text-sm font-bold text-gray-700" id="setup-card-count">当前卡牌总数: 12 张</div>
+
+          <div class="flex gap-2 pt-2 border-t border-gray-200 mt-4">
+            <button id="btn-save-setup" class="bg-[#8D6E63] text-white px-3 py-2 rounded hover:bg-[#5D4037] text-sm font-bold transition">💾 保存版型</button>
+            <button id="btn-delete-setup" class="bg-red-700 text-white px-3 py-2 rounded hover:bg-red-800 text-sm font-bold transition">🗑️ 删除</button>
+            <button id="btn-update-config" class="btn-primary flex-1 text-sm">应用并同步版型至 OBS</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section B2: Standby Config -->
+      <div class="panel p-6">
+        <h2 class="text-2xl font-bold border-b border-[#8D6E63] pb-2 mb-4">出战表配置</h2>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-bold mb-1">左侧文字</label>
+            <input type="text" id="standby-left" placeholder="狼管家">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">主标题</label>
+            <input type="text" id="standby-title" placeholder="出战表">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">右侧文字</label>
+            <input type="text" id="standby-date" placeholder="第一轮第二局">
+          </div>
+          <div>
+            <label class="block text-sm font-bold mb-1">底部文字</label>
+            <input type="text" id="standby-footer" placeholder="狼管家 Studio · 沉浸式狼人杀体验">
+          </div>
+          
+          <div class="flex gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-bold text-yellow-600 mb-1">🥇 MVP (座位号)</label>
+              <select id="standby-mvp" class="w-full">
+                <option value="0">无</option>
+                <option value="1">1号位</option>
+                <option value="2">2号位</option>
+                <option value="3">3号位</option>
+                <option value="4">4号位</option>
+                <option value="5">5号位</option>
+                <option value="6">6号位</option>
+                <option value="7">7号位</option>
+                <option value="8">8号位</option>
+                <option value="9">9号位</option>
+                <option value="10">10号位</option>
+                <option value="11">11号位</option>
+                <option value="12">12号位</option>
+              </select>
+            </div>
+            <div class="flex-1">
+              <label class="block text-sm font-bold text-gray-500 mb-1">🥈 SVP (座位号)</label>
+              <select id="standby-svp" class="w-full">
+                <option value="0">无</option>
+                <option value="1">1号位</option>
+                <option value="2">2号位</option>
+                <option value="3">3号位</option>
+                <option value="4">4号位</option>
+                <option value="5">5号位</option>
+                <option value="6">6号位</option>
+                <option value="7">7号位</option>
+                <option value="8">8号位</option>
+                <option value="9">9号位</option>
+                <option value="10">10号位</option>
+                <option value="11">11号位</option>
+                <option value="12">12号位</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="pt-4 border-t border-gray-200 mt-2">
+            <button id="btn-sync-standby" class="btn-primary w-full text-sm">将以上配置同步至出战表</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section C: Active Game Control (Seats 1-12) -->
+    <div class="panel p-6">
+      <div class="flex flex-col lg:flex-row justify-between items-center border-b border-[#8D6E63] pb-4 mb-4 gap-4">
+        <h2 class="text-2xl font-bold">C. 实时游戏控制（1-12号位）</h2>
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-bold whitespace-nowrap">警长任命:</label>
+            <select id="sheriff-select" class="border border-[#8D6E63] rounded p-1 bg-[#faf8f5] w-24">
+              <option value="0">无</option>
+              <option value="1">1号</option>
+              <option value="2">2号</option>
+              <option value="3">3号</option>
+              <option value="4">4号</option>
+              <option value="5">5号</option>
+              <option value="6">6号</option>
+              <option value="7">7号</option>
+              <option value="8">8号</option>
+              <option value="9">9号</option>
+              <option value="10">10号</option>
+              <option value="11">11号</option>
+              <option value="12">12号</option>
+            </select>
+            <button id="btn-confirm-sheriff" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-bold transition">确认</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-bold whitespace-nowrap">当前游戏进度:</label>
+            <select id="config-process" class="border border-[#8D6E63] rounded p-1 bg-[#faf8f5] w-40">
+              <option value="等待游戏开始">等待游戏开始</option>
+              <option value="第一天">第一天</option>
+              <option value="第二天">第二天</option>
+              <option value="第三天">第三天</option>
+              <option value="第四天">第四天</option>
+              <option value="第五天">第五天</option>
+            </select>
+          </div>
+          <button id="btn-save-seats" class="btn-primary whitespace-nowrap">同步进度与座位至 OBS</button>
+          <button id="btn-reset-game" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded text-sm font-bold whitespace-nowrap transition">🔄 重置状态</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="seats-container">
+        <!-- Generated by JS -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Cropper Modal -->
+  <div id="cropper-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden flex flex-col items-center justify-center p-4">
+    <div class="bg-white p-4 rounded-lg shadow-xl w-full max-w-md flex flex-col items-center">
+      <h3 class="text-xl font-bold mb-4 text-[#5D4037]">调整头像位置和大小</h3>
+      <div class="relative w-full h-80 bg-gray-100 flex justify-center items-center overflow-hidden rounded">
+        <img id="cropper-image" src="" alt="Avatar" class="max-w-full max-h-full hidden">
+      </div>
+      <p class="text-sm text-gray-500 mt-2 text-center w-full">拖动、缩放图片，确保头像处于正中的圆框内。</p>
+      <div class="mt-6 flex justify-between w-full gap-4">
+        <button id="btn-cancel-crop" class="flex-1 py-2 bg-gray-300 text-gray-800 font-bold rounded hover:bg-gray-400 transition">取消</button>
+        <button id="btn-confirm-crop" class="flex-1 py-2 btn-primary font-bold">确认裁剪</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cropper.js Script -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
