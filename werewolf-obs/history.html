@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>游戏结算历史 - 狼人杀</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Supabase JS -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      background-color: #f4ebd8; /* Sepia light */
+      color: #3e2723;
+    }
+    .panel {
+      background: white;
+      border: 2px solid #8D6E63;
+      box-shadow: 4px 4px 0px #5D4037;
+      border-radius: 8px;
+    }
+    .btn-primary {
+      background-color: #5D4037;
+      color: #f4ebd8;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .btn-primary:hover {
+      background-color: #3e2723;
+    }
+    
+    .history-card {
+      transition: transform 0.2s;
+    }
+    .history-card:hover {
+      transform: scale(1.01);
+    }
+    
+    .victory-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+    .victory-good { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+    .victory-wolf { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+    .victory-other { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
+
+    /* Identity Colors */
+    .identity-wolf { background: linear-gradient(to right, #8A1C1C, #B71C1C); color: white; }
+    .identity-god { background: linear-gradient(to right, #2E7D32, #4CAF50); color: white; }
+    .identity-villager { background: linear-gradient(to right, #F57F17, #FBC02D); color: white; }
+    .identity-unknown { background: #757575; color: white; }
+
+    .title-badge {
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: bold;
+      margin-left: 4px;
+    }
+    .badge-mvp { background-color: #FFD700; color: #8B0000; border: 1px solid #DAA520; }
+    .badge-svp { background-color: #E0E0E0; color: #1C1C1C; border: 1px solid #9E9E9E; }
+    .badge-scapegoat { background-color: #B71C1C; color: #FFFFFF; border: 1px solid #ffcdd2; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+    th { font-size: 0.75rem; color: #8D6E63; text-transform: uppercase; }
+  </style>
+</head>
+<body class="p-6 font-sans min-h-screen">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center border-b-4 border-[#5D4037] pb-4 mb-8">
+      <div class="flex items-center gap-4">
+        <a href="admin.html" class="bg-[#8D6E63] text-white p-2 rounded-full hover:bg-[#5D4037] transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </a>
+        <h1 class="text-4xl font-bold text-[#5D4037]">游戏结算历史统计</h1>
+      </div>
+      <button id="btn-refresh" class="btn-primary">刷新数据</button>
+    </div>
+
+    <!-- History List -->
+    <div id="history-list" class="space-y-6">
+      <div class="py-20 text-center text-gray-500 italic">正在加载历史记录...</div>
+    </div>
+  </div>
+
+  <script src="supabase-config.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!window.supabaseClient) return;
+      const supabase = window.supabaseClient;
+
+      const elHistoryList = document.getElementById('history-list');
+      const elBtnRefresh = document.getElementById('btn-refresh');
+
+      async function loadHistory() {
+        elHistoryList.innerHTML = '<div class="py-20 text-center text-gray-500 italic">正在加载历史记录...</div>';
+        
+        const { data, error } = await supabase
+          .from('game_history')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          elHistoryList.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded border border-red-200">加载失败: ${error.message}</div>`;
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          elHistoryList.innerHTML = '<div class="py-20 text-center text-gray-500 italic">暂无历史记录，请在后台同步出战表后点击“存储”</div>';
+          return;
+        }
+
+        const split = (str) => new Set((str || '').split(/[,，\s]+/).filter(Boolean));
+
+        elHistoryList.innerHTML = '';
+        data.forEach(game => {
+          // Use the pools saved WITH this specific game
+          const rolePools = game.role_pools || {};
+          const wolfSet = split(rolePools.wolves);
+          const godSet = split(rolePools.gods);
+          const villagerSet = split(rolePools.villagers);
+
+          function getRoleClass(identity) {
+            const r = (identity || '').trim();
+            if (!r || r === '未知') return 'identity-unknown';
+            if (wolfSet.has(r)) return 'identity-wolf';
+            if (godSet.has(r)) return 'identity-god';
+            if (villagerSet.has(r)) return 'identity-villager';
+            
+            // Keyword fallback
+            if (r.includes('狼') || r === '恶灵骑士' || r === '梦魇' || r === '大灰狼') return 'identity-wolf';
+            if (r.includes('民')) return 'identity-villager';
+            return 'identity-god'; 
+          }
+
+          const card = document.createElement('div');
+          card.className = 'panel p-6 history-card';
+          
+          let victoryClass = 'victory-other';
+          if (game.victory_status === '好人胜利') victoryClass = 'victory-good';
+          if (game.victory_status === '狼人胜利') victoryClass = 'victory-wolf';
+
+          const date = new Date(game.created_at).toLocaleString();
+
+          let tableRows = '';
+          game.results.forEach(res => {
+            const roleClass = getRoleClass(res.identity);
+            
+            let titles = '';
+            if (game.mvp === res.seat_number) titles += '<span class="title-badge badge-mvp">MVP</span>';
+            if (game.svp === res.seat_number) titles += '<span class="title-badge badge-svp">SVP</span>';
+            if (game.scapegoat === res.seat_number) titles += '<span class="title-badge badge-scapegoat">背锅</span>';
+
+            tableRows += `
+              <tr class="${res.final_score >= 5 ? 'bg-green-50' : ''}">
+                <td class="font-bold">${res.seat_number}</td>
+                <td>
+                  ${res.player_name} 
+                  <span class="text-[10px] text-gray-400">(${res.player_id})</span>
+                  ${titles}
+                </td>
+                <td><span class="text-xs font-bold px-3 py-1 rounded-full ${roleClass}">${res.identity}</span></td>
+                <td class="text-gray-500 text-xs">${res.base_score}</td>
+                <td class="text-gray-500 text-xs">${res.correction > 0 ? '+' : ''}${res.correction}</td>
+                <td class="font-bold ${res.final_score > 0 ? 'text-green-700' : res.final_score < 0 ? 'text-red-700' : ''}">${res.final_score > 0 ? '+' : ''}${res.final_score}</td>
+              </tr>
+            `;
+          });
+
+          card.innerHTML = `
+            <div class="flex justify-between items-start mb-4">
+              <div>
+                <h3 class="text-xl font-bold text-[#5D4037]">${game.setup_name}</h3>
+                <p class="text-xs text-gray-400">${date} | ${game.date_text}</p>
+              </div>
+              <span class="victory-badge ${victoryClass}">${game.victory_status}</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>座位</th>
+                    <th>玩家</th>
+                    <th>身份</th>
+                    <th>基础分</th>
+                    <th>修正</th>
+                    <th>总计</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tableRows}
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button class="text-xs text-red-600 hover:underline" onclick="deleteEntry(${game.id})">删除此条记录</button>
+            </div>
+          `;
+          elHistoryList.appendChild(card);
+        });
+      }
+
+      window.deleteEntry = async (id) => {
+        if (!confirm('确定要删除这条历史记录吗？')) return;
+        const { error } = await supabase.from('game_history').delete().eq('id', id);
+        if (error) alert('删除失败');
+        else loadHistory();
+      };
+
+      elBtnRefresh.onclick = loadHistory;
+      loadHistory();
+    });
+  </script>
+</body>
+</html>

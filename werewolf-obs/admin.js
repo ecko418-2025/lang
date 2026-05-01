@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const elStandbyFooter = document.getElementById('standby-footer');
   const elStandbyMvp = document.getElementById('standby-mvp');
   const elStandbySvp = document.getElementById('standby-svp');
+  const elStandbyScapegoat = document.getElementById('standby-scapegoat');
   const btnSyncStandby = document.getElementById('btn-sync-standby');
 
   const elSheriffSelect = document.getElementById('sheriff-select');
@@ -358,6 +359,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       elStandbyFooter.value = data.standby_config.footer || '';
       elStandbyMvp.value = data.standby_config.mvp || '0';
       elStandbySvp.value = data.standby_config.svp || '0';
+      elStandbyScapegoat.value = data.standby_config.scapegoat || '0';
+      
+      // Load score corrections
+      const corrections = data.standby_config.score_corrections || [];
+      const selects = document.querySelectorAll('.score-correction-select');
+      selects.forEach((sel, i) => {
+        sel.value = (corrections[i] !== undefined) ? corrections[i] : '0';
+      });
     }
 
     if (data.sheriff_seat !== undefined) {
@@ -401,12 +410,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- Section D: Standby Config ----
   btnSyncStandby.addEventListener('click', async () => {
     const config = {
-      left_text: elStandbyLeft.value.trim() || '狼管家',
+      left_text: elStandbyLeft.value,
       title: elStandbyTitle.value.trim() || '出战表',
       date_text: elStandbyDate.value.trim(),
       footer: elStandbyFooter.value.trim() || '狼管家 Studio · 沉浸式狼人杀体验',
       mvp: parseInt(elStandbyMvp.value, 10),
-      svp: parseInt(elStandbySvp.value, 10)
+      svp: parseInt(elStandbySvp.value, 10),
+      scapegoat: parseInt(elStandbyScapegoat.value, 10),
+      score_corrections: Array.from(document.querySelectorAll('.score-correction-select')).map(sel => parseFloat(sel.value))
     };
 
     const { error } = await supabase.from('current_game_state').update({ standby_config: config }).eq('id', GAME_STATE_ID);
@@ -418,6 +429,100 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } else {
       alert('出战表配置已成功同步！');
+    }
+  });
+
+  const btnResetScores = document.getElementById('btn-reset-scores');
+  btnResetScores.addEventListener('click', () => {
+    document.querySelectorAll('.score-correction-select').forEach(sel => sel.value = '0');
+  });
+
+  const btnSaveHistory = document.getElementById('btn-save-history');
+  btnSaveHistory.addEventListener('click', async () => {
+    if (!currentGameState) return alert('尚未加载游戏状态');
+    if (!confirm('确定要存储本局统计数据吗？')) return;
+
+    btnSaveHistory.disabled = true;
+    btnSaveHistory.innerText = '存储中...';
+
+    try {
+      // 1. Prepare role sets for scoring logic - USE LIVE UI VALUES
+      const elWolves = document.getElementById('config-wolves');
+      const elGods = document.getElementById('config-gods');
+      const elVillagers = document.getElementById('config-villagers');
+      
+      const split = (str) => new Set((str || '').split(/[,，\s]+/).filter(Boolean));
+      const roleSets = {
+        wolfSet:     split(elWolves.value),
+        godSet:      split(elGods.value),
+        villagerSet: split(elVillagers.value)
+      };
+
+      const standbyConfig = currentGameState.standby_config || {};
+
+      function getRoleCat(role) {
+        const r = (role || '').trim();
+        if (!r || r === '未知') return 'unknown';
+        // 只要在狼人池子里的就是狼，否则就是好人
+        if (roleSets.wolfSet.has(r)) return 'wolf';
+        return 'good';
+      }
+
+      // 2. Fetch player names for history
+      const { data: allPlayers } = await supabase.from('player_directory').select('id, name');
+      const playerMap = {};
+      allPlayers?.forEach(p => playerMap[p.id] = p.name);
+
+      // 3. Calculate results for each seat
+      const corrections = standbyConfig.score_corrections || [];
+      const victoryStatus = standbyConfig.left_text;
+
+      const results = currentGameState.seats.map((seat, i) => {
+        const roleCat = getRoleCat(seat.identity);
+        let baseScore = 0;
+        if (victoryStatus === '好人胜利' && roleCat === 'good') {
+          baseScore = 5;
+        } else if (victoryStatus === '狼人胜利' && roleCat === 'wolf') {
+          baseScore = 5;
+        }
+        const correction = corrections[i] || 0;
+        return {
+          seat_number: seat.seat_number,
+          player_id: seat.player_id,
+          player_name: playerMap[seat.player_id] || '空缺',
+          identity: seat.identity || '未知',
+          base_score: baseScore,
+          correction: correction,
+          final_score: baseScore + correction
+        };
+      });
+
+      // 4. Save to game_history
+      const historyEntry = {
+        setup_name: currentGameState.setup_name || '未命名版型',
+        victory_status: victoryStatus || '未知',
+        date_text: standbyConfig.date_text || new Date().toISOString().split('T')[0],
+        results: results,
+        mvp: standbyConfig.mvp || 0,
+        svp: standbyConfig.svp || 0,
+        scapegoat: standbyConfig.scapegoat || 0,
+        role_pools: standbyConfig.role_pools || {}
+      };
+
+      const { error } = await supabase.from('game_history').insert([historyEntry]);
+      if (error) {
+        if (error.code === '42P01') {
+          throw new Error('数据库中尚未创建 game_history 表，请联系管理员或运行建表 SQL！');
+        }
+        throw error;
+      }
+
+      alert('本局统计数据已成功存储到历史记录！');
+    } catch (err) {
+      alert('存储失败: ' + err.message);
+    } finally {
+      btnSaveHistory.disabled = false;
+      btnSaveHistory.innerText = '本局统计存储';
     }
   });
 
@@ -679,7 +784,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
-    const { error } = await supabase.from('current_game_state').update({ seats: updatedSeats, process: process }).eq('id', GAME_STATE_ID);
+    // Capture current role pools from the UI to ensure colors stay in sync
+    const currentRolePools = {
+      wolves:    elWolves.value.trim(),
+      gods:      elGods.value.trim(),
+      villagers: elVillagers.value.trim()
+    };
+
+    // Read existing standby_config, then merge current role_pools into it
+    const { data: existing } = await supabase.from('current_game_state').select('standby_config').eq('id', GAME_STATE_ID).single();
+    const mergedConfig = Object.assign({}, (existing && existing.standby_config) || {}, {
+      role_pools: currentRolePools
+    });
+
+    const { error } = await supabase.from('current_game_state').update({ 
+      seats: updatedSeats, 
+      process: process,
+      standby_config: mergedConfig
+    }).eq('id', GAME_STATE_ID);
     if (error) {
       alert('更新失败: ' + error.message);
     } else {

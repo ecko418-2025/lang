@@ -53,9 +53,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else if (roleSets && roleSets.villagerSet.has(statusText)) {
         roleCat = 'villager';
       } else {
-        // Fallback keyword guess
-        if (statusText.includes('狼') || statusText === '恶灵骑士') roleCat = 'wolf';
-        else if (statusText.includes('民')) roleCat = 'villager';
+        // Fallback keyword guess if pool lookup fails
+        const r = statusText.trim();
+        if (r.includes('狼') || r === '恶灵骑士' || r === '梦魇' || r === '大灰狼') roleCat = 'wolf';
+        else if (r.includes('民')) roleCat = 'villager';
         else roleCat = 'god';
       }
     }

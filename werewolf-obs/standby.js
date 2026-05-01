@@ -17,16 +17,20 @@ function buildRoleSets(rolePools) {
 }
 
 function getRoleCategory(identity, roleSets) {
-  if (!identity) return 'unknown';
+  const r = (identity || '').trim();
+  if (!r || r === '未知') return 'unknown';
+  
   if (roleSets) {
-    if (roleSets.wolfSet.has(identity))     return 'wolf';
-    if (roleSets.godSet.has(identity))      return 'god';
-    if (roleSets.villagerSet.has(identity)) return 'villager';
+    if (roleSets.wolfSet.has(r)) return 'wolf';
+    if (roleSets.godSet.has(r))  return 'god';
+    if (roleSets.villagerSet.has(r)) return 'villager';
   }
-  // Fallback keyword guess
-  if (identity.includes('狼') || identity === '恶灵骑士') return 'wolf';
-  if (identity.includes('民')) return 'villager';
-  return 'god';
+
+  // Fallback keyword guess if pool lookup fails
+  if (r.includes('狼') || r === '恶灵骑士' || r === '梦魇' || r === '大灰狼') return 'wolf';
+  if (r.includes('民')) return 'villager';
+  
+  return 'god'; // Final fallback
 }
 
 async function fetchAndRender() {
@@ -95,17 +99,34 @@ async function fetchAndRender() {
     const roleText = seat.identity || '未知';
     const roleCat = getRoleCategory(seat.identity, roleSets);
     
+    // Score Calculation
+    let baseScore = 0;
+    const victoryStatus = standbyConfig.left_text;
+    if (victoryStatus === '好人胜利' && (roleCat === 'god' || roleCat === 'villager')) {
+      baseScore = 5;
+    } else if (victoryStatus === '狼人胜利' && roleCat === 'wolf') {
+      baseScore = 5;
+    }
+    
+    const corrections = standbyConfig.score_corrections || [];
+    const correction = corrections[seat.seat_number - 1] || 0;
+    const finalScore = baseScore + correction;
+    const scoreHtml = `<div class="score-badge">${finalScore > 0 ? '+' : ''}${finalScore}</div>`;
+
     let medalHtml = '';
     if (standbyConfig.mvp === seat.seat_number) {
       medalHtml = `<div class="medal-stamp medal-mvp">MVP</div>`;
     } else if (standbyConfig.svp === seat.seat_number) {
       medalHtml = `<div class="medal-stamp medal-svp">SVP</div>`;
+    } else if (standbyConfig.scapegoat === seat.seat_number) {
+      medalHtml = `<div class="medal-stamp medal-scapegoat">背锅</div>`;
     }
 
     const cardHtml = `
       <div class="player-card">
         <div class="avatar-ring">
           ${medalHtml}
+          ${scoreHtml}
           <div class="seat-badge">${seat.seat_number}</div>
           <img src="${avatarUrl}" alt="${player.name}">
         </div>
