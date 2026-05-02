@@ -1,0 +1,21 @@
+{
+  "name": "狼人杀管理后台",
+  "short_name": "狼管家",
+  "description": "沉浸式狼人杀 OBS 管理系统",
+  "start_url": "admin.html",
+  "display": "standalone",
+  "background_color": "#f4ebd8",
+  "theme_color": "#5D4037",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
