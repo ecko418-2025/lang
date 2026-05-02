@@ -69,9 +69,45 @@
   </style>
 </head>
 <body class="p-6 font-sans">
-  <div class="max-w-7xl mx-auto space-y-6">
-    <h1 class="text-4xl font-bold mb-8 border-b-4 border-[#5D4037] pb-4">狼人杀后台管理界面</h1>
+  <div class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b-4 border-[#5D4037] pb-4">
+    <h1 class="text-4xl font-bold whitespace-nowrap">狼人杀后台管理界面</h1>
+    
+    <!-- Top Navigation Bar (Simplified) -->
+    <nav class="flex flex-wrap gap-3 items-center">
+      <div class="text-xs font-bold text-[#5D4037] mr-1 px-2 border-r border-[#8D6E63] hidden sm:block">快速导航:</div>
+      
+      <a href="players.html" class="flex items-center gap-1.5 text-xs font-bold text-[#5D4037] hover:text-blue-700 transition px-3 py-1.5 rounded-lg bg-white border border-[#8D6E63] shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+        </svg>
+        玩家数据库
+      </a>
+      
+      <a href="standby.html" target="_blank" class="flex items-center gap-1.5 text-xs font-bold text-[#5D4037] hover:text-blue-700 transition px-3 py-1.5 rounded-lg bg-white border border-[#8D6E63] shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+        </svg>
+        出战表
+      </a>
+      
+      <a href="history.html" class="flex items-center gap-1.5 text-xs font-bold text-[#5D4037] hover:text-blue-700 transition px-3 py-1.5 rounded-lg bg-white border border-[#8D6E63] shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+        </svg>
+        历史统计
+      </a>
+      
+      <a href="index.html" target="_blank" class="flex items-center gap-1.5 text-xs font-bold text-blue-800 hover:text-blue-600 transition px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+          <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+        </svg>
+        OBS 主控
+      </a>
+    </nav>
+  </div>
 
+  <div class="max-w-7xl mx-auto space-y-6">
     <!-- Top Sections -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
       
@@ -195,96 +231,63 @@
             <input type="text" id="standby-footer" placeholder="狼管家 Studio · 沉浸式狼人杀体验">
           </div>
           
-          <div class="flex gap-4">
-            <div class="flex-1">
-              <label class="block text-sm font-bold text-yellow-600 mb-1">🥇 MVP</label>
-              <select id="standby-mvp" class="w-full">
-                <option value="0">无</option>
-                <option value="1">1号位</option>
-                <option value="2">2号位</option>
-                <option value="3">3号位</option>
-                <option value="4">4号位</option>
-                <option value="5">5号位</option>
-                <option value="6">6号位</option>
-                <option value="7">7号位</option>
-                <option value="8">8号位</option>
-                <option value="9">9号位</option>
-                <option value="10">10号位</option>
-                <option value="11">11号位</option>
-                <option value="12">12号位</option>
-              </select>
+          <!-- Scoring and Honors Group -->
+          <div class="bg-blue-50/30 p-4 rounded-xl border border-blue-100 mt-4">
+            <div class="flex justify-between items-center mb-4">
+              <span class="text-sm font-bold text-blue-800">🏅 赛后结算配置 (荣誉 & 积分)</span>
+              <button id="btn-reset-scores" class="text-[10px] bg-white hover:bg-gray-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200 shadow-sm transition font-bold">一键归零</button>
             </div>
-            <div class="flex-1">
-              <label class="block text-sm font-bold text-gray-500 mb-1">🥈 SVP</label>
-              <select id="standby-svp" class="w-full">
-                <option value="0">无</option>
-                <option value="1">1号位</option>
-                <option value="2">2号位</option>
-                <option value="3">3号位</option>
-                <option value="4">4号位</option>
-                <option value="5">5号位</option>
-                <option value="6">6号位</option>
-                <option value="7">7号位</option>
-                <option value="8">8号位</option>
-                <option value="9">9号位</option>
-                <option value="10">10号位</option>
-                <option value="11">11号位</option>
-                <option value="12">12号位</option>
-              </select>
+
+            <!-- Honors Row -->
+            <div class="flex gap-3 mb-6">
+              <div class="flex-1">
+                <label class="block text-[10px] font-bold text-yellow-600 mb-1">🥇 MVP</label>
+                <select id="standby-mvp" class="w-full text-xs">
+                  <option value="0">无</option>
+                  <option value="1">1号位</option><option value="2">2号位</option><option value="3">3号位</option><option value="4">4号位</option><option value="5">5号位</option><option value="6">6号位</option>
+                  <option value="7">7号位</option><option value="8">8号位</option><option value="9">9号位</option><option value="10">10号位</option><option value="11">11号位</option><option value="12">12号位</option>
+                </select>
+              </div>
+              <div class="flex-1">
+                <label class="block text-[10px] font-bold text-gray-500 mb-1">🥈 SVP</label>
+                <select id="standby-svp" class="w-full text-xs">
+                  <option value="0">无</option>
+                  <option value="1">1号位</option><option value="2">2号位</option><option value="3">3号位</option><option value="4">4号位</option><option value="5">5号位</option><option value="6">6号位</option>
+                  <option value="7">7号位</option><option value="8">8号位</option><option value="9">9号位</option><option value="10">10号位</option><option value="11">11号位</option><option value="12">12号位</option>
+                </select>
+              </div>
+              <div class="flex-1">
+                <label class="block text-[10px] font-bold text-red-600 mb-1">🥘 背锅侠</label>
+                <select id="standby-scapegoat" class="w-full text-xs">
+                  <option value="0">无</option>
+                  <option value="1">1号位</option><option value="2">2号位</option><option value="3">3号位</option><option value="4">4号位</option><option value="5">5号位</option><option value="6">6号位</option>
+                  <option value="7">7号位</option><option value="8">8号位</option><option value="9">9号位</option><option value="10">10号位</option><option value="11">11号位</option><option value="12">12号位</option>
+                </select>
+              </div>
             </div>
-            <div class="flex-1">
-              <label class="block text-sm font-bold text-red-600 mb-1">🥘 背锅侠</label>
-              <select id="standby-scapegoat" class="w-full">
-                <option value="0">无</option>
-                <option value="1">1号位</option>
-                <option value="2">2号位</option>
-                <option value="3">3号位</option>
-                <option value="4">4号位</option>
-                <option value="5">5号位</option>
-                <option value="6">6号位</option>
-                <option value="7">7号位</option>
-                <option value="8">8号位</option>
-                <option value="9">9号位</option>
-                <option value="10">10号位</option>
-                <option value="11">11号位</option>
-                <option value="12">12号位</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="pt-4 border-t border-gray-200 mt-2">
-            <div class="flex justify-between items-center mb-2">
-              <label class="block text-sm font-bold text-blue-800">📊 积分修正 (1-12号位)</label>
-              <button id="btn-reset-scores" class="text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded border border-gray-400 transition">一键归零</button>
-            </div>
-            <div class="grid grid-cols-4 sm:grid-cols-6 gap-2" id="score-corrections-container">
-              <!-- Generated by loop for 12 seats -->
-              <script>
-                (function() {
-                  const container = document.currentScript.parentElement;
-                  for (let i = 1; i <= 12; i++) {
-                    const div = document.createElement('div');
-                    div.className = 'flex flex-col items-center';
-                    div.innerHTML = `
-                      <span class="text-[10px] font-bold text-gray-500">${i}号</span>
-                      <select class="score-correction-select text-xs p-1 h-8" data-seat="${i}">
-                        <option value="3">+3.0</option>
-                        <option value="2.5">+2.5</option>
-                        <option value="2">+2.0</option>
-                        <option value="1.5">+1.5</option>
-                        <option value="1">+1.0</option>
-                        <option value="0.5">+0.5</option>
-                        <option value="0" selected>0</option>
-                        <option value="-0.5">-0.5</option>
-                        <option value="-1">-1.0</option>
-                        <option value="-1.5">-1.5</option>
-                        <option value="-2">-2.0</option>
-                      </select>
-                    `;
-                    container.appendChild(div);
-                  }
-                })();
-              </script>
+
+            <!-- Corrections Grid -->
+            <div class="pt-2 border-t border-blue-100">
+              <div class="grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-3" id="score-corrections-container">
+                <script>
+                  (function() {
+                    const container = document.currentScript.parentElement;
+                    for (let i = 1; i <= 12; i++) {
+                      const div = document.createElement('div');
+                      div.className = 'flex flex-col items-center';
+                      div.innerHTML = `
+                        <span class="text-[10px] font-bold text-gray-400 mb-0.5">${i}号</span>
+                        <select class="score-correction-select text-sm p-1 h-9 w-full border-[#D4AF37]/30 font-bold text-blue-800" data-seat="${i}">
+                          <option value="3">+3.0</option><option value="2.5">+2.5</option><option value="2">+2.0</option><option value="1.5">+1.5</option><option value="1">+1.0</option><option value="0.5">+0.5</option>
+                          <option value="0" selected>0</option>
+                          <option value="-0.5">-0.5</option><option value="-1">-1.0</option><option value="-1.5">-1.5</option><option value="-2">-2.0</option>
+                        </select>
+                      `;
+                      container.appendChild(div);
+                    }
+                  })();
+                </script>
+              </div>
             </div>
           </div>
           

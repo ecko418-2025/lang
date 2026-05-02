@@ -55,7 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         // Fallback keyword guess if pool lookup fails
         const r = statusText.trim();
-        if (r.includes('狼') || r === '恶灵骑士' || r === '梦魇' || r === '大灰狼') roleCat = 'wolf';
+        const wolfRoles = ['恶灵骑士', '石像鬼', '血月使徒', '蚀日侍女', '噩梦之影', '寂夜导师', '狂爆恶魔', '梦魇', '大灰狼', '怪盗狼王'];
+        if (r.includes('狼') || wolfRoles.includes(r)) roleCat = 'wolf';
         else if (r.includes('民')) roleCat = 'villager';
         else roleCat = 'god';
       }

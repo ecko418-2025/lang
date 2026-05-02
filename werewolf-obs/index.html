@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Werewolf OBS Overlay</title>
+  <title>直播画面展示</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -283,12 +283,12 @@
     /* Top Banner */
     .top-banner-container {
       position: absolute;
-      top: 30px;
+      top: 0; /* Flush with top */
       left: 0;
       right: 0;
       display: flex;
       justify-content: center;
-      align-items: center;
+      align-items: flex-start; /* Align to top */
       gap: 50px;
       z-index: 50;
     }
@@ -301,13 +301,14 @@
       background-color: transparent;
       border: none;
       color: #000;
-      padding: 30px 75px;
-      font-size: 36px;
+      padding: 15px 60px; /* Reduced padding */
+      font-size: 32px; /* Slightly smaller */
       font-weight: bold;
       box-shadow: none;
       position: relative;
       border-radius: 0;
-      min-width: 300px;
+      min-width: 280px;
+      margin-top: 10px; /* Slight offset for side banners */
       text-align: center;
       display: flex;
       justify-content: center;
@@ -315,11 +316,11 @@
     }
 
     .logo-container {
-      width: 800px;
-      height: 200px;
+      width: 700px; /* Slightly smaller to save space */
+      height: 180px;
       display: flex;
       justify-content: center;
-      align-items: center;
+      align-items: flex-start;
     }
     
     .logo-container img {
@@ -351,7 +352,7 @@
     </div>
 
     <!-- Player Grid Layout -->
-    <div class="absolute top-40 left-0 right-0 bottom-0 px-0 flex justify-between">
+    <div class="absolute top-24 left-0 right-0 bottom-0 px-0 flex justify-between">
       
       <!-- Left Column (Seats 1-6) -->
       <div class="flex flex-col justify-around h-[880px] w-auto" id="left-column">

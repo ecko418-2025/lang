@@ -121,93 +121,134 @@
           return;
         }
 
+        // Grouping by Date
+        const groups = {};
+        data.forEach(item => {
+          const d = item.date_text || new Date(item.created_at).toISOString().split('T')[0];
+          if (!groups[d]) groups[d] = [];
+          groups[d].push(item);
+        });
+
         const split = (str) => new Set((str || '').split(/[,，\s]+/).filter(Boolean));
 
         elHistoryList.innerHTML = '';
-        data.forEach(game => {
-          // Use the pools saved WITH this specific game
-          const rolePools = game.role_pools || {};
-          const wolfSet = split(rolePools.wolves);
-          const godSet = split(rolePools.gods);
-          const villagerSet = split(rolePools.villagers);
+        
+        Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(dateKey => {
+          const groupContainer = document.createElement('div');
+          groupContainer.className = 'mb-8';
 
-          function getRoleClass(identity) {
-            const r = (identity || '').trim();
-            if (!r || r === '未知') return 'identity-unknown';
-            if (wolfSet.has(r)) return 'identity-wolf';
-            if (godSet.has(r)) return 'identity-god';
-            if (villagerSet.has(r)) return 'identity-villager';
-            
-            // Keyword fallback
-            if (r.includes('狼') || r === '恶灵骑士' || r === '梦魇' || r === '大灰狼') return 'identity-wolf';
-            if (r.includes('民')) return 'identity-villager';
-            return 'identity-god'; 
-          }
+          const groupHeader = document.createElement('div');
+          groupHeader.className = 'flex items-center gap-4 mb-4 cursor-pointer group';
+          groupHeader.innerHTML = `
+            <div class="h-px bg-[#8D6E63] flex-1"></div>
+            <h2 class="text-xl font-western font-bold text-[#5D4037] px-4 py-2 bg-white border-2 border-[#8D6E63] rounded-lg shadow-sm flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+              ${dateKey} <span class="text-xs font-normal opacity-60">(${groups[dateKey].length} 场对局)</span>
+            </h2>
+            <div class="h-px bg-[#8D6E63] flex-1"></div>
+          `;
 
-          const card = document.createElement('div');
-          card.className = 'panel p-6 history-card';
+          const content = document.createElement('div');
+          content.className = 'space-y-6 overflow-hidden transition-all duration-300';
           
-          let victoryClass = 'victory-other';
-          if (game.victory_status === '好人胜利') victoryClass = 'victory-good';
-          if (game.victory_status === '狼人胜利') victoryClass = 'victory-wolf';
+          groupHeader.onclick = () => {
+            const isHidden = content.classList.contains('hidden');
+            content.classList.toggle('hidden');
+            groupHeader.querySelector('svg').style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+          };
 
-          const date = new Date(game.created_at).toLocaleString();
+          groups[dateKey].forEach(game => {
+            // Use the pools saved WITH this specific game
+            const rolePools = game.role_pools || {};
+            const wolfSet = split(rolePools.wolves);
+            const godSet = split(rolePools.gods);
+            const villagerSet = split(rolePools.villagers);
 
-          let tableRows = '';
-          game.results.forEach(res => {
-            const roleClass = getRoleClass(res.identity);
+            function getRoleClass(identity) {
+              const r = (identity || '').trim();
+              if (!r || r === '未知') return 'identity-unknown';
+              if (wolfSet.has(r)) return 'identity-wolf';
+              if (godSet.has(r)) return 'identity-god';
+              if (villagerSet.has(r)) return 'identity-villager';
+              
+              // Keyword fallback
+              const wolfRoles = ['恶灵骑士', '石像鬼', '血月使徒', '蚀日侍女', '噩梦之影', '寂夜导师', '狂爆恶魔', '梦魇', '大灰狼', '怪盗狼王'];
+              if (r.includes('狼') || wolfRoles.includes(r)) return 'identity-wolf';
+              if (r.includes('民')) return 'identity-villager';
+              return 'identity-god'; 
+            }
+
+            const card = document.createElement('div');
+            card.className = 'panel p-6 history-card';
             
-            let titles = '';
-            if (game.mvp === res.seat_number) titles += '<span class="title-badge badge-mvp">MVP</span>';
-            if (game.svp === res.seat_number) titles += '<span class="title-badge badge-svp">SVP</span>';
-            if (game.scapegoat === res.seat_number) titles += '<span class="title-badge badge-scapegoat">背锅</span>';
+            let victoryClass = 'victory-other';
+            if (game.victory_status === '好人胜利') victoryClass = 'victory-good';
+            if (game.victory_status === '狼人胜利') victoryClass = 'victory-wolf';
 
-            tableRows += `
-              <tr class="${res.final_score >= 5 ? 'bg-green-50' : ''}">
-                <td class="font-bold">${res.seat_number}</td>
-                <td>
-                  ${res.player_name} 
-                  <span class="text-[10px] text-gray-400">(${res.player_id})</span>
-                  ${titles}
-                </td>
-                <td><span class="text-xs font-bold px-3 py-1 rounded-full ${roleClass}">${res.identity}</span></td>
-                <td class="text-gray-500 text-xs">${res.base_score}</td>
-                <td class="text-gray-500 text-xs">${res.correction > 0 ? '+' : ''}${res.correction}</td>
-                <td class="font-bold ${res.final_score > 0 ? 'text-green-700' : res.final_score < 0 ? 'text-red-700' : ''}">${res.final_score > 0 ? '+' : ''}${res.final_score}</td>
-              </tr>
+            const timeStr = new Date(game.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            let tableRows = '';
+            game.results.forEach(res => {
+              const roleClass = getRoleClass(res.identity);
+              
+              let titles = '';
+              if (game.mvp === res.seat_number) titles += '<span class="title-badge badge-mvp">MVP</span>';
+              if (game.svp === res.seat_number) titles += '<span class="title-badge badge-svp">SVP</span>';
+              if (game.scapegoat === res.seat_number) titles += '<span class="title-badge badge-scapegoat">背锅</span>';
+
+              tableRows += `
+                <tr class="${res.final_score >= 5 ? 'bg-green-50' : ''}">
+                  <td class="font-bold">${res.seat_number}</td>
+                  <td>
+                    ${res.player_name} 
+                    <span class="text-[10px] text-gray-400">(${res.player_id})</span>
+                    ${titles}
+                  </td>
+                  <td><span class="text-xs font-bold px-3 py-1 rounded-full ${roleClass}">${res.identity}</span></td>
+                  <td class="text-gray-500 text-xs">${res.base_score}</td>
+                  <td class="text-gray-500 text-xs">${res.correction > 0 ? '+' : ''}${res.correction}</td>
+                  <td class="font-bold ${res.final_score > 0 ? 'text-green-700' : res.final_score < 0 ? 'text-red-700' : ''}">${res.final_score > 0 ? '+' : ''}${res.final_score}</td>
+                </tr>
+              `;
+            });
+
+            card.innerHTML = `
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-xl font-bold text-[#5D4037]">${game.setup_name}</h3>
+                  <p class="text-xs text-gray-400">${timeStr}</p>
+                </div>
+                <span class="victory-badge ${victoryClass}">${game.victory_status}</span>
+              </div>
+              <div class="overflow-x-auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>座位</th>
+                      <th>玩家</th>
+                      <th>身份</th>
+                      <th>基础分</th>
+                      <th>修正</th>
+                      <th>总计</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${tableRows}
+                  </tbody>
+                </table>
+              </div>
+              <div class="mt-4 flex justify-end">
+                  <button class="text-xs text-red-600 hover:underline" onclick="deleteEntry(${game.id})">删除此条记录</button>
+              </div>
             `;
+            content.appendChild(card);
           });
 
-          card.innerHTML = `
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h3 class="text-xl font-bold text-[#5D4037]">${game.setup_name}</h3>
-                <p class="text-xs text-gray-400">${date} | ${game.date_text}</p>
-              </div>
-              <span class="victory-badge ${victoryClass}">${game.victory_status}</span>
-            </div>
-            <div class="overflow-x-auto">
-              <table>
-                <thead>
-                  <tr>
-                    <th>座位</th>
-                    <th>玩家</th>
-                    <th>身份</th>
-                    <th>基础分</th>
-                    <th>修正</th>
-                    <th>总计</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${tableRows}
-                </tbody>
-              </table>
-            </div>
-            <div class="mt-4 flex justify-end">
-                <button class="text-xs text-red-600 hover:underline" onclick="deleteEntry(${game.id})">删除此条记录</button>
-            </div>
-          `;
-          elHistoryList.appendChild(card);
+          groupContainer.appendChild(groupHeader);
+          groupContainer.appendChild(content);
+          elHistoryList.appendChild(groupContainer);
         });
       }
 

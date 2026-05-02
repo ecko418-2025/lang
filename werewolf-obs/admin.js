@@ -434,7 +434,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const btnResetScores = document.getElementById('btn-reset-scores');
   btnResetScores.addEventListener('click', () => {
+    // 1. Reset all score corrections
     document.querySelectorAll('.score-correction-select').forEach(sel => sel.value = '0');
+    
+    // 2. Reset honors selectors (MVP, SVP, Scapegoat)
+    if (elStandbyMvp) elStandbyMvp.value = '0';
+    if (elStandbySvp) elStandbySvp.value = '0';
+    if (elStandbyScapegoat) elStandbyScapegoat.value = '0';
   });
 
   const btnSaveHistory = document.getElementById('btn-save-history');
@@ -450,6 +456,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const elWolves = document.getElementById('config-wolves');
       const elGods = document.getElementById('config-gods');
       const elVillagers = document.getElementById('config-villagers');
+      const elVictory = document.getElementById('standby-left');
+      const elMvp = document.getElementById('standby-mvp');
+      const elSvp = document.getElementById('standby-svp');
+      const elScapegoat = document.getElementById('standby-scapegoat');
       
       const split = (str) => new Set((str || '').split(/[,，\s]+/).filter(Boolean));
       const roleSets = {
@@ -458,7 +468,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         villagerSet: split(elVillagers.value)
       };
 
-      const standbyConfig = currentGameState.standby_config || {};
+      const victoryStatus = elVictory.value;
+      const mvpSeat = parseInt(elMvp.value);
+      const svpSeat = parseInt(elSvp.value);
+      const scapegoatSeat = parseInt(elScapegoat.value);
+
+      // Fetch ALL score corrections from UI
+      const correctionsMap = {};
+      document.querySelectorAll('.score-correction-select').forEach(sel => {
+        const seatNum = parseInt(sel.getAttribute('data-seat'));
+        correctionsMap[seatNum] = parseFloat(sel.value) || 0;
+      });
 
       function getRoleCat(role) {
         const r = (role || '').trim();
@@ -474,9 +494,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       allPlayers?.forEach(p => playerMap[p.id] = p.name);
 
       // 3. Calculate results for each seat
-      const corrections = standbyConfig.score_corrections || [];
-      const victoryStatus = standbyConfig.left_text;
-
       const results = currentGameState.seats.map((seat, i) => {
         const roleCat = getRoleCat(seat.identity);
         let baseScore = 0;
@@ -485,7 +502,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (victoryStatus === '狼人胜利' && roleCat === 'wolf') {
           baseScore = 5;
         }
-        const correction = corrections[i] || 0;
+        
+        const correction = correctionsMap[seat.seat_number] || 0;
         return {
           seat_number: seat.seat_number,
           player_id: seat.player_id,
@@ -501,12 +519,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const historyEntry = {
         setup_name: currentGameState.setup_name || '未命名版型',
         victory_status: victoryStatus || '未知',
-        date_text: standbyConfig.date_text || new Date().toISOString().split('T')[0],
+        date_text: new Date().toISOString().split('T')[0],
         results: results,
-        mvp: standbyConfig.mvp || 0,
-        svp: standbyConfig.svp || 0,
-        scapegoat: standbyConfig.scapegoat || 0,
-        role_pools: standbyConfig.role_pools || {}
+        mvp: mvpSeat,
+        svp: svpSeat,
+        scapegoat: scapegoatSeat,
+        role_pools: {
+          wolves: elWolves.value.trim(),
+          gods: elGods.value.trim(),
+          villagers: elVillagers.value.trim()
+        }
       };
 
       const { error } = await supabase.from('game_history').insert([historyEntry]);

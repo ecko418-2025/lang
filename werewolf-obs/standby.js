@@ -27,7 +27,8 @@ function getRoleCategory(identity, roleSets) {
   }
 
   // Fallback keyword guess if pool lookup fails
-  if (r.includes('狼') || r === '恶灵骑士' || r === '梦魇' || r === '大灰狼') return 'wolf';
+  const wolfRoles = ['恶灵骑士', '石像鬼', '血月使徒', '蚀日侍女', '噩梦之影', '寂夜导师', '狂爆恶魔', '梦魇', '大灰狼', '怪盗狼王'];
+  if (r.includes('狼') || wolfRoles.includes(r)) return 'wolf';
   if (r.includes('民')) return 'villager';
   
   return 'god'; // Final fallback
