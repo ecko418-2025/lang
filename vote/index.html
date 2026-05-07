@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>狼人杀法官助手</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- 引入 Babel 编译器 (用于在浏览器中编译 JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 引入 Lucide 图标库 (浏览器    <!-- 引入 Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #020617; /* slate-950 */
+            color: #e2e8f0; /* slate-200 */
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        /* 隐藏原始的 SVG 图标，因为我们会用 Lucide 替换它们 */
+        i[data-lucide] {
+            display: inline-block;
+        }
+
+        /* 移动端优化：禁止长按菜单和选中文本 */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* 允许输入框等元素选中文本（如果有的话） */
+        input, textarea {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        /* 滚动条隐藏但保持功能 (可选) */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* 角色颜色标记 */
+            .role-tag-wolf { background: linear-gradient(to right, #fad0c4, #ff9a9e); color: #7f1d1d; border: 1px solid #d16b71; font-weight: 800; }
+            .role-tag-god { background: linear-gradient(to right, #d4ebd0, #a0c49d); color: #064e3b; border: 1px solid #7b9e76; font-weight: 800; }
+            .role-tag-villager { background: linear-gradient(to right, #fff5d1, #f2d77d); color: #713f12; border: 1px solid #c9aa4b; font-weight: 800; }
+            .role-tag-unknown { background: rgba(30, 41, 59, 0.2); color: #94a3b8; border: 1px solid rgba(30, 41, 59, 0.4); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // 初始化 Supabase
+        const SUPABASE_URL = 'https://nqwzybdymdzgvhtvjugo.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_LychNAytZzXicbp23aJ9fg_P3o-JD8Y';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 简易图标组件包装器
+        const Icon = ({ name, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [name, className]);
+            
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        function App() {
+            const GAME_STATE_ID = 1;
+
+            // 核心状态
+            const [phase, setPhase] = useState('setup'); // 'setup' | 'day' | 'voting' | 'result' | 'settlement' | 'campaign'
+            const [localCampaigning, setLocalCampaigning] = useState([]); // 用于本地暂存竞选状态
+            const [players, setPlayers] = useState([]); // 包含同步后的所有信息
+            const [gameState, setGameState] = useState(null); // 存储从云端同步的完整状态
+            const [wolfPool, setWolfPool] = useState(new Set()); // 存储识别出的狼人角色名
+
+            // 投票状态
+            const [votes, setVotes] = useState({}); // { voterId: targetId | 'abstain' }
+            const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
+            const [voteHistory, setVoteHistory] = useState([]); 
+            const [roundNumber, setRoundNumber] = useState(1);
+            const [deathMenuId, setDeathMenuId] = useState(null); // 当前正在选择死因的玩家ID
+
+            const alivePlayers = useMemo(() => players.filter(p => p.alive), [players]);
+
+            // ---- 数据同步逻辑 ----
+            
+            useEffect(() => {
+                fetchInitialData();
+                
+                // 订阅游戏状态变更
+                const channel = supabase
+                    .channel('public:current_game_state')
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'current_game_state', filter: `id=eq.${GAME_STATE_ID}` }, payload => {
+                        handleStateUpdate(payload.new);
+                    })
+                    .subscribe();
+
+                return () => supabase.removeChannel(channel);
+            }, []);
+
+            async function fetchInitialData() {
+                try {
+                    // 1. 获取基础玩家库（头像）
+                    const { data: directory } = await supabase.from('player_directory').select('*');
+                    const playerMap = {};
+                    directory?.forEach(p => playerMap[p.id] = p);
+
+                    // 2. 获取当前游戏状态（座位、身份）
+                    const { data: state } = await supabase.from('current_game_state').select('*').eq('id', GAME_STATE_ID).single();
+                    if (state) {
+                        syncPlayersFromState(state, playerMap);
+                        handleStateUpdate(state);
+                    }
+                } catch (err) {
+                    console.error('Initial fetch error:', err);
+                }
+            }
+
+            function handleStateUpdate(state) {
+                setGameState(state);
+                // 更新狼人池
+                if (state.standby_config?.role_pools?.wolves) {
+                    const wolves = state.standby_config.role_pools.wolves.split(/[,，\s]+/).filter(Boolean);
+                    setWolfPool(new Set(wolves));
+                }
+                refreshPlayerDetails(state);
+            }
+
+            async function refreshPlayerDetails(state) {
+                const { data: directory } = await supabase.from('player_directory').select('*');
+                const playerMap = {};
+                directory?.forEach(p => playerMap[p.id] = p);
+                syncPlayersFromState(state, playerMap);
+            }
+
+            // 同步本地状态到数据库
+            const syncStatusToDB = async (updatedPlayers) => {
+                try {
+                    const { data: current } = await supabase.from('current_game_state').select('seats').eq('id', GAME_STATE_ID).single();
+                    if (!current?.seats) return;
+
+                    const newSeats = current.seats.map(s => {
+                        const localPlayer = updatedPlayers.find(p => p.id === s.seat_number);
+                        if (localPlayer) {
+                            return {
+                                ...s,
+                                is_alive: localPlayer.alive,
+                                death_cause: localPlayer.deathCause
+                            };
+                        }
+                        return s;
+                    });
+
+                    await supabase.from('current_game_state').update({ seats: newSeats }).eq('id', GAME_STATE_ID);
+                } catch (err) {
+                    console.error('Sync status error:', err);
+                }
+            };
+
+            function syncPlayersFromState(state, playerMap) {
+                const wolfSet = new Set();
+                const godSet = new Set();
+                const villagerSet = new Set();
+                
+                if (state.standby_config?.role_pools) {
+                    const pools = state.standby_config.role_pools;
+                    if (pools.wolves) pools.wolves.split(/[,，\s]+/).filter(Boolean).forEach(w => wolfSet.add(w));
+                    if (pools.gods) pools.gods.split(/[,，\s]+/).filter(Boolean).forEach(g => godSet.add(g));
+                    if (pools.villagers) pools.villagers.split(/[,，\s]+/).filter(Boolean).forEach(v => villagerSet.add(v));
+                }
+
+                setPlayers(prevPlayers => {
+                    return Array.from({ length: 12 }, (_, i) => {
+                        const seatNumber = i + 1;
+                        const s = state.seats?.find(seat => seat.seat_number === seatNumber);
+                        const localP = prevPlayers.find(p => p.id === seatNumber);
+                        
+                        if (s) {
+                            const profile = playerMap[s.player_id] || {};
+                            const identity = s.identity || '';
+                            let role = 'unknown';
+                            if (identity) {
+                                if (wolfSet.has(identity) || identity.includes('狼')) role = 'wolf';
+                                else if (villagerSet.has(identity) || identity.includes('民')) role = 'villager';
+                                else role = 'god';
+                            }
+
+                            // 核心修复：如果不是在准备阶段，优先保留本地的死亡状态，防止被外部（如选择警长）重置
+                            // 逻辑：如果本地已标记死亡，则维持死亡；如果本地存活但 DB 标记死亡，则同步 DB 的死亡
+                            let isAlive = s.is_alive !== false;
+                            let cause = isAlive ? null : (s.death_cause || 'night');
+
+                            if (localP && localP.alive === false) {
+                                isAlive = false;
+                                cause = localP.deathCause;
+                            }
+
+                            return {
+                                id: s.seat_number,
+                                db_player_id: s.player_id,
+                                name: profile.name || `${s.seat_number}号位`,
+                                avatar: profile.avatar_url || `https://ui-avatars.com/api/?name=${s.seat_number}&background=random`,
+                                identity: identity || '未知',
+                                alive: isAlive,
+                                isSheriff: state.sheriff_seat === seatNumber,
+                                isCampaigning: s.is_campaigning === true,
+                                role: role,
+                                deathCause: cause
+                            };
+                        } else {
+                            return {
+                                id: seatNumber,
+                                db_player_id: null,
+                                name: `${seatNumber}号位`,
+                                avatar: `https://ui-avatars.com/api/?name=${seatNumber}&background=slate&color=fff`,
+                                identity: '未上座',
+                                alive: true,
+                                isSheriff: false,
+                                isCampaigning: false,
+                                role: 'unknown',
+                                deathCause: null
+                            };
+                        }
+                    });
+                });
+            }
+
+            const setSheriffInDB = async (seatNumber) => {
+                try {
+                    const { data: current } = await supabase.from('current_game_state').select('seats').eq('id', GAME_STATE_ID).single();
+                    
+                    // 任命警长后，自动取消所有人的竞选状态
+                    let newSeats = current?.seats || [];
+                    if (newSeats.length > 0) {
+                        newSeats = newSeats.map(s => ({ ...s, is_campaigning: false }));
+                    }
+
+                    const { error } = await supabase.from('current_game_state').update({ 
+                        sheriff_seat: seatNumber,
+                        seats: newSeats
+                    }).eq('id', GAME_STATE_ID);
+                    if (error) throw error;
+                } catch (err) {
+                    alert('同步失败: ' + err.message);
+                }
+            };
+
+            const toggleCampaigningLocal = (id) => {
+                setLocalCampaigning(prev => 
+                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                );
+            };
+
+            const confirmCampaigning = async () => {
+                try {
+                    const { data: current } = await supabase.from('current_game_state').select('seats').eq('id', GAME_STATE_ID).single();
+                    if (!current?.seats) return;
+
+                    const newSeats = current.seats.map(s => ({
+                        ...s,
+                        is_campaigning: localCampaigning.includes(s.seat_number)
+                    }));
+
+                    await supabase.from('current_game_state').update({ seats: newSeats }).eq('id', GAME_STATE_ID);
+                    setPhase('day');
+                } catch (err) {
+                    console.error('Confirm campaigning error:', err);
+                    alert('同步失败，请检查网络');
+                }
+            };
+
+            // ---- 游戏控制 ----
+
+            const handleStartGame = () => {
+                setPhase('day');
+                setVotes({});
+                setVoteHistory([]);
+                setRoundNumber(1);
+            };
+
+            const togglePlayerAlive = (id) => {
+                const p = players.find(player => player.id === id);
+                if (!p.alive) {
+                    // 如果已经是死亡状态，点击则复活
+                    const updatedPlayers = players.map(player => 
+                        player.id === id ? { ...player, alive: true, deathCause: null } : player
+                    );
+                    setPlayers(updatedPlayers);
+                    syncStatusToDB(updatedPlayers);
+                } else {
+                    // 如果是存活状态，显示死因选择菜单
+                    setDeathMenuId(id);
+                }
+            };
+
+            const confirmDeath = (id, cause) => {
+                const updatedPlayers = players.map(p => 
+                    p.id === id ? { ...p, alive: false, deathCause: cause } : p
+                );
+                setPlayers(updatedPlayers);
+                syncStatusToDB(updatedPlayers);
+                setDeathMenuId(null);
+            };
+
+            const startVoting = () => {
+                setVotes({});
+                setCurrentVoterIndex(0);
+                setPhase('voting');
+            };
+
+            const castVote = (targetId) => {
+                const currentVoter = alivePlayers[currentVoterIndex];
+                setVotes(prev => ({ ...prev, [currentVoter.id]: targetId }));
+                
+                if (currentVoterIndex + 1 < alivePlayers.length) {
+                    setCurrentVoterIndex(currentVoterIndex + 1);
+                } else {
+                    setPhase('result');
+                }
+            };
+
+            const archiveVotes = () => {
+                setVoteHistory([...voteHistory, { round: roundNumber, votes: { ...votes } }]);
+                setRoundNumber(roundNumber + 1);
+            };
+
+            const prevVoter = () => {
+                if (currentVoterIndex > 0) setCurrentVoterIndex(currentVoterIndex - 1);
+            };
+
+            const executeElimination = (targetId) => {
+                const target = players.find(p => p.id === targetId);
+                if(window.confirm(`确定要放逐 ${target?.name} 吗？`)) {
+                    archiveVotes();
+                    const updatedPlayers = players.map(p => p.id === targetId ? { ...p, alive: false, deathCause: '放逐' } : p);
+                    setPlayers(updatedPlayers);
+                    syncStatusToDB(updatedPlayers);
+                    setPhase('day');
+                }
+            };
+
+            // ---- 计分结果计算 ----
+
+            const voteResults = useMemo(() => {
+                if (phase !== 'result') return null;
+                const counts = {};
+                const details = {};
+                alivePlayers.forEach(p => { counts[p.id] = 0; details[p.id] = []; });
+                
+                let abstainCount = 0;
+                const abstainDetails = [];
+
+                Object.entries(votes).forEach(([voterSeat, targetId]) => {
+                    const voter = players.find(p => p.id === parseInt(voterSeat));
+                    const weight = voter.isSheriff ? 1.5 : 1;
+                    
+                    if (targetId === 'abstain') {
+                        abstainCount += weight;
+                        abstainDetails.push(voter.isSheriff ? `${voter.name}(1.5)` : voter.name);
+                    } else {
+                        counts[targetId] = (counts[targetId] || 0) + weight;
+                        if (!details[targetId]) details[targetId] = [];
+                        details[targetId].push(voter.isSheriff ? `${voter.name}(1.5)` : voter.name);
+                    }
+                });
+
+                const maxVotes = Math.max(0, ...Object.values(counts));
+                const isTie = maxVotes > 0 && Object.values(counts).filter(v => v === maxVotes).length > 1;
+                const targetsWithMax = Object.keys(counts).filter(id => counts[id] === maxVotes).map(Number);
+
+                return { counts, details, abstainCount, abstainDetails, maxVotes, isTie, targetsWithMax };
+            }, [votes, phase, alivePlayers, players]);
+
+            const uploadScores = async () => {
+                try {
+                    const { data: existing } = await supabase.from('current_game_state').select('standby_config').eq('id', GAME_STATE_ID).single();
+                    const newCorrections = Array(12).fill(0);
+                    
+                    // 遍历所有玩家，如果是好人则使用计算出的分值，否则为0（或保留原值，这里按逻辑设为计算值）
+                    players.forEach(p => {
+                        if (p.id >= 1 && p.id <= 12) {
+                            if (p.role === 'god' || p.role === 'villager') {
+                                const sData = settlementData.find(s => s.id === p.id);
+                                newCorrections[p.id - 1] = sData ? sData.score : 0;
+                            } else {
+                                newCorrections[p.id - 1] = 0;
+                            }
+                        }
+                    });
+
+                    const mergedConfig = {
+                        ...(existing?.standby_config || {}),
+                        score_corrections: newCorrections
+                    };
+
+                    const { error } = await supabase.from('current_game_state')
+                        .update({ standby_config: mergedConfig })
+                        .eq('id', GAME_STATE_ID);
+
+                    if (error) throw error;
+                    alert('分值已成功同步至后台结算区域！');
+                } catch (err) {
+                    alert('同步失败: ' + err.message);
+                }
+            };
+
+            const settlementData = useMemo(() => {
+                if (phase !== 'settlement') return [];
+                
+                return players.filter(p => p.role === 'god' || p.role === 'villager').map(p => {
+                    let score = 0;
+                    const details = [];
+                    voteHistory.forEach(history => {
+                        const targetId = history.votes[p.id];
+                        if (targetId && targetId !== 'abstain') {
+                            const target = players.find(tp => tp.id === targetId);
+                            const isHit = target?.role === 'wolf';
+                            score += isHit ? 0.5 : -0.5;
+                            details.push({ round: history.round, target: target?.name || '未知', isHit });
+                        } else {
+                            details.push({ round: history.round, target: '弃票', isHit: null });
+                        }
+                    });
+                    return { ...p, score, details };
+                }).sort((a, b) => a.id - b.id);
+            }, [phase, voteHistory, players]);
+
+            // ---- 渲染视图 ----
+
+            const renderCampaign = () => (
+                <div className="flex flex-col h-full animate-fade-in">
+                    <div className="text-center mb-6 pt-6">
+                        <h2 className="text-2xl font-bold text-white tracking-tight">上警/竞选管理</h2>
+                        <p className="text-slate-400 text-[10px] mt-1 uppercase tracking-widest">选择参与警长竞选的玩家</p>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto mb-6 pr-1 custom-scrollbar">
+                        <div className="grid grid-flow-col grid-rows-6 gap-3">
+                            {players.map(p => {
+                                const isSelected = localCampaigning.includes(p.id);
+                                return (
+                                    <div 
+                                        key={p.id}
+                                        onClick={() => toggleCampaigningLocal(p.id)}
+                                        className={`relative p-3 rounded-2xl border flex items-center space-x-3 transition cursor-pointer active:scale-[0.98] ${
+                                            isSelected 
+                                            ? 'bg-indigo-600/20 border-indigo-500 shadow-lg shadow-indigo-900/20' 
+                                            : 'bg-slate-900/40 border-slate-800 opacity-60 grayscale'
+                                        }`}
+                                    >
+                                        <div className="relative flex-shrink-0">
+                                            <img src={p.avatar} className="w-8 h-8 rounded-full object-cover" />
+                                            <div className={`absolute -top-1 -left-1 text-[8px] w-4 h-4 rounded-full flex items-center justify-center border font-black ${isSelected ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-slate-700 text-slate-500 border-slate-600'}`}>
+                                                {p.id}
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-slate-500'}`}>{p.name}</p>
+                                        </div>
+                                        {isSelected && <div className="w-4 h-4 bg-indigo-500 rounded-full flex items-center justify-center"><Icon name="check" className="w-2 h-2 text-white" /></div>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={confirmCampaigning}
+                        className="w-full bg-slate-100 text-slate-900 font-black py-4 rounded-2xl shadow-xl transition active:scale-95 mb-4"
+                    >
+                        确认并返回
+                    </button>
+                </div>
+            );
+
+            const renderSetup = () => (
+                <div className="flex flex-col items-center justify-center h-full space-y-6 animate-fade-in">
+                    <div className="text-center">
+                        <img src="./logo.png" alt="Logo" className="h-28 mx-auto mb-8 object-contain" />
+                        <h1 className="text-3xl font-bold text-slate-100 tracking-wider">狼人杀法官助手</h1>
+                        <p className="text-slate-400 mt-2 text-sm">已与云端同步，准备就绪</p>
+                    </div>
+
+                    <div className="w-full max-w-xs bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                        <div className="space-y-4 mb-6">
+                            <div className="p-5 bg-slate-900/50 rounded-xl border border-slate-700/50 text-center">
+                                <p className="text-[10px] text-slate-500 mb-3 uppercase tracking-[0.2em]">当前版型</p>
+                                <div className="text-2xl text-slate-100 font-black tracking-tight">
+                                    {gameState?.setup_name || '自定义版型'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button 
+                            onClick={handleStartGame}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-indigo-900/50 flex items-center justify-center space-x-2 transition active:scale-95"
+                        >
+                            <Icon name="play" className="w-5 h-5" />
+                            <span>开始游戏</span>
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const renderDay = () => (
+                <div className="flex flex-col h-full animate-fade-in">
+                    <div className="flex justify-between items-center mb-6 pt-2">
+                        <div className="flex-1">
+                            <button 
+                                onClick={() => {
+                                    // 进入页面时初始化本地状态
+                                    setLocalCampaigning(players.filter(p => p.isCampaigning).map(p => p.id));
+                                    setPhase('campaign');
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-lg shadow-indigo-900/40 flex items-center justify-center space-x-1 transition active:scale-95"
+                            >
+                                <Icon name="mic" className="w-3 h-3" />
+                                <span>上警选择</span>
+                            </button>
+                            <p className="text-slate-500 text-[10px] mt-1 ml-0.5 font-medium tracking-tight">
+                                存活: <span className="text-indigo-400 font-bold">{alivePlayers.length}</span>/{players.length}
+                            </p>
+                        </div>
+                        <div className="flex-shrink-0 px-2">
+                            <img src="./logo.png" alt="Logo" className="h-20 object-contain drop-shadow-2xl" />
+                        </div>
+                        <div className="flex-1 flex flex-col items-end space-y-1">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">警长任命</span>
+                            <select 
+                                value={gameState?.sheriff_seat || 0} 
+                                onChange={(e) => setSheriffInDB(parseInt(e.target.value))}
+                                className="bg-slate-800 text-indigo-400 text-xs font-bold rounded-lg px-2 py-1 border border-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                            >
+                                <option value={0}>-- 无 --</option>
+                                {Array.from({length: 12}, (_, i) => (
+                                    <option key={i+1} value={i+1}>{i+1}号玩家</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto mb-6 pr-1 custom-scrollbar">
+                        <div className="grid grid-flow-col grid-rows-6 gap-3">
+                            {players.map(p => (
+                                <div 
+                                    key={p.id}
+                                    onClick={() => togglePlayerAlive(p.id)}
+                                    className={`relative p-3 rounded-xl border flex items-center space-x-3 transition cursor-pointer active:scale-95 ${
+                                        p.alive 
+                                        ? 'bg-slate-800 border-slate-700 shadow-md hover:border-indigo-500/50' 
+                                        : 'bg-slate-900/50 border-slate-800/50 opacity-60'
+                                    }`}
+                                >
+                                    <div className="relative flex-shrink-0">
+                                        <img src={p.avatar} className={`w-10 h-10 rounded-full object-cover border-2 ${p.alive ? 'border-indigo-500/50' : 'border-slate-700'} ${!p.alive ? 'grayscale' : ''}`} />
+                                        <div className={`absolute -top-1 -left-1 text-[10px] w-5 h-5 rounded-full flex items-center justify-center border font-bold ${p.alive ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                                            {p.id}
+                                        </div>
+                                        {!p.alive && (
+                                            <div className={`absolute inset-0 flex items-center justify-center ${p.deathCause === 'exiled' || p.deathCause === '放逐' ? 'rotate-12' : '-rotate-12'} pointer-events-none`}>
+                                                <div className={`${p.deathCause === 'exiled' || p.deathCause === '放逐' ? 'bg-rose-600/90 border-rose-400' : 'bg-slate-700/90 border-slate-500'} text-white text-[8px] font-black px-1 py-0.5 rounded border shadow-lg whitespace-nowrap`}>
+                                                    {p.deathCause === 'night' ? '昨夜' : (p.deathCause === 'exiled' ? '放逐' : p.deathCause)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-sm font-bold truncate text-slate-100">{p.name}</h3>
+                                        <div className="flex items-start space-x-1 mt-1">
+                                            <p className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block ${
+                                                p.role === 'wolf' ? 'role-tag-wolf' : p.role === 'god' ? 'role-tag-god' : p.role === 'villager' ? 'role-tag-villager' : 'role-tag-unknown'
+                                            }`}>
+                                                {p.identity}
+                                            </p>
+                                            {p.isSheriff && (
+                                                <div className="bg-gradient-to-b from-red-500 to-red-700 text-white text-[8px] font-black px-1 py-0.5 rounded border border-red-400 shadow-sm flex flex-col items-center leading-none">
+                                                    <span>警</span>
+                                                    <span className="mt-0.5">长</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className={`p-1 text-slate-500`}>
+                                        <Icon name={p.alive ? "heart" : "skull"} className={`w-4 h-4 ${p.alive ? '' : 'text-rose-500'}`} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={startVoting}
+                        disabled={alivePlayers.length === 0}
+                        className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-rose-900/50 flex items-center justify-center space-x-2 transition active:scale-95 mb-4"
+                    >
+                        <Icon name="users" className="w-6 h-6 mr-2" />
+                        <span className="text-lg">发起投票</span>
+                    </button>
+
+                    <button 
+                        onClick={() => setPhase('settlement')}
+                        className="w-full bg-slate-800 hover:bg-slate-700 text-indigo-400 font-bold py-4 px-4 rounded-xl border border-slate-700 flex items-center justify-center space-x-2 transition active:scale-95 mb-2 shadow-lg"
+                    >
+                        <Icon name="calculator" className="w-6 h-6 mr-2" />
+                        <span className="text-lg">本局结束统计分值！</span>
+                    </button>
+                    
+                    <button 
+                        onClick={() => setPhase('setup')}
+                        className="w-full bg-slate-900/50 hover:bg-slate-900 text-slate-500 font-medium py-2 rounded-lg text-xs transition flex items-center justify-center"
+                    >
+                        <Icon name="home" className="w-3 h-3 mr-1" />
+                        返回首页
+                    </button>
+                </div>
+            );
+
+            const renderVoting = () => {
+                const currentVoter = alivePlayers[currentVoterIndex];
+                return (
+                    <div className="flex flex-col h-full animate-fade-in">
+                        <div className="bg-slate-800 p-4 rounded-2xl border border-indigo-500/30 mb-6 mt-4 shadow-lg flex items-center space-x-4">
+                            <div className="relative flex-shrink-0">
+                                <img src={currentVoter.avatar} className={`w-16 h-16 rounded-2xl object-cover border-2 ${currentVoter.isSheriff ? 'border-yellow-500' : 'border-indigo-500'}`} />
+                                {currentVoter.isSheriff && (
+                                    <div className="absolute -top-2 -right-2 bg-yellow-500 text-slate-900 w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900 shadow-lg z-10">
+                                        <Icon name="shield-check" className="w-3.5 h-3.5" />
+                                    </div>
+                                )}
+                                <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs w-7 h-7 rounded-full flex items-center justify-center border-2 border-indigo-400 font-black shadow-lg">
+                                    {currentVoter.id}
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-indigo-400 text-xs font-bold mb-1 uppercase tracking-wider">正在投票 ({currentVoterIndex + 1}/{alivePlayers.length}) {currentVoter.isSheriff ? '· 警长(1.5票)' : ''}</p>
+                                <h2 className="text-2xl font-bold text-white">{currentVoter.name}</h2>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+                            {alivePlayers.map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => castVote(p.id)}
+                                    className={`w-full text-left p-3 rounded-xl border flex items-center space-x-3 transition active:scale-[0.98] ${
+                                        p.id === currentVoter.id ? 'bg-slate-900/50 border-slate-800 text-slate-500' : 'bg-slate-800 border-slate-700 hover:border-rose-500 text-slate-100'
+                                    }`}
+                                >
+                                    <div className="relative">
+                                        <img src={p.avatar} className="w-8 h-8 rounded-full object-cover grayscale-[0.3]" />
+                                        <div className="absolute -top-1 -left-1 bg-slate-900 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center border border-slate-700 font-bold">
+                                            {p.id}
+                                        </div>
+                                    </div>
+                                    <span className="text-lg font-medium">{p.name}</span>
+                                    {p.id === currentVoter.id && <span className="text-[10px] ml-auto">投自己</span>}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-800 pb-4">
+                            <button onClick={prevVoter} disabled={currentVoterIndex === 0} className="col-span-1 py-3 rounded-xl bg-slate-800 text-slate-300 disabled:opacity-30 font-medium">上一步</button>
+                            <button onClick={() => castVote('abstain')} className="col-span-2 py-3 rounded-xl bg-slate-700 border border-slate-600 text-white font-medium shadow-md">弃票 (Abstain)</button>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderResult = () => {
+                const { counts, details, abstainCount, abstainDetails, maxVotes, isTie, targetsWithMax } = voteResults;
+                return (
+                    <div className="flex flex-col h-full animate-fade-in">
+                        <div className="text-center mb-8 pt-6">
+                            <h2 className="text-2xl font-bold text-slate-100">投票统计</h2>
+                            <div className="mt-3 inline-flex flex-wrap justify-center gap-2">
+                                {maxVotes === 0 ? (
+                                    <span className="text-amber-400 bg-amber-900/30 py-1 px-3 rounded-full text-xs font-bold border border-amber-500/30">全员弃票</span>
+                                ) : isTie ? (
+                                    <span className="text-amber-400 bg-amber-900/30 py-1 px-3 rounded-full text-xs font-bold border border-amber-500/30">出现平票 ({maxVotes}票)</span>
+                                ) : (
+                                    <span className="text-rose-400 bg-rose-900/30 py-1 px-3 rounded-full text-xs font-bold border border-rose-500/30">最高票: {targetsWithMax.map(id=>`${id}号`).join(', ')} ({maxVotes}票)</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto mb-6 pr-1 space-y-3 custom-scrollbar">
+                            {alivePlayers.filter(p => counts[p.id] > 0).sort((a,b)=>counts[b.id]-counts[a.id]).map(p => {
+                                const isMax = targetsWithMax.includes(p.id) && maxVotes > 0;
+                                return (
+                                    <div key={p.id} className={`p-4 rounded-xl border ${isMax ? 'bg-rose-900/20 border-rose-500/50' : 'bg-slate-800 border-slate-700'}`}>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="relative">
+                                                    <img src={p.avatar} className="w-10 h-10 rounded-full object-cover" />
+                                                    <div className={`absolute -top-1 -left-1 text-[10px] w-5 h-5 rounded-full flex items-center justify-center border font-bold ${isMax ? 'bg-rose-600 text-white border-rose-400' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                                                        {p.id}
+                                                    </div>
+                                                </div>
+                                                <span className={`text-lg font-bold ${isMax ? 'text-rose-400' : 'text-slate-100'}`}>{p.name}</span>
+                                            </div>
+                                            <span className="text-2xl font-black text-slate-100">{counts[p.id]}<span className="text-xs ml-1 text-slate-500">票</span></span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {details[p.id].map((v, i) => <span key={i} className="text-[10px] bg-slate-700/50 text-slate-300 px-2 py-0.5 rounded">{v}</span>)}
+                                        </div>
+                                        {isMax && !isTie && (
+                                            <button onClick={() => executeElimination(p.id)} className="mt-4 w-full bg-rose-600 text-white py-2.5 rounded-lg font-bold text-sm shadow-lg shadow-rose-900/50">执行放逐</button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            {abstainCount > 0 && (
+                                <div className="p-3 rounded-xl bg-slate-900/30 border border-slate-800">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-bold text-slate-500">弃票</span>
+                                        <span className="text-lg font-bold text-slate-400">{abstainCount}票</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {abstainDetails.map((v, i) => <span key={i} className="text-[10px] text-slate-500 px-2 py-0.5 rounded bg-slate-800/30">{v}</span>)}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <button onClick={() => setPhase('day')} className="bg-slate-800 text-slate-300 py-4 rounded-xl font-bold border border-slate-700">返回</button>
+                            <button onClick={() => { archiveVotes(); setPhase('day'); }} className="bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-indigo-900/50">确认并继续</button>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderSettlement = () => (
+                <div className="flex flex-col h-full animate-fade-in">
+                    <div className="text-center mb-6 pt-8">
+                        <h2 className="text-2xl font-bold text-slate-100 tracking-tight">好人阵营积分统计</h2>
+                        <div className="mt-2 text-[10px] text-slate-500 flex justify-center space-x-4">
+                            <span className="flex items-center"><div className="w-2 h-2 rounded-full bg-emerald-500 mr-1"></div>投中狼人 +0.5</span>
+                            <span className="flex items-center"><div className="w-2 h-2 rounded-full bg-rose-500 mr-1"></div>投错好人 -0.5</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto mb-6 pr-1 custom-scrollbar space-y-3">
+                        {settlementData.map(p => (
+                            <div key={p.id} className="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="relative">
+                                            <img src={p.avatar} className="w-12 h-12 rounded-full border-2 border-slate-700 object-cover" />
+                                            <div className="absolute -top-1 -left-1 bg-indigo-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-indigo-400 font-bold">
+                                                {p.id}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-100">{p.name}</h3>
+                                            <span className="text-[10px] bg-indigo-900/30 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">{p.identity}</span>
+                                        </div>
+                                    </div>
+                                    <div className={`text-3xl font-black italic ${p.score > 0 ? 'text-emerald-400' : p.score < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                                        {p.score > 0 ? `+${p.score}` : p.score}
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5 pt-3 border-t border-slate-700/30">
+                                    {p.details.map((d, i) => (
+                                        <div key={i} className="flex justify-between text-[10px]">
+                                            <span className="text-slate-500">Day{d.round} 投票给:</span>
+                                            <span className={d.isHit === true ? 'text-emerald-500' : d.isHit === false ? 'text-rose-500' : 'text-slate-400'}>
+                                                {d.target} {d.isHit === true ? '(命中狼)' : d.isHit === false ? '(误伤)' : ''}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {p.details.length === 0 && <p className="text-center text-[10px] text-slate-600 py-2">无投票记录</p>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button onClick={() => setPhase('day')} className="w-full bg-slate-800 text-slate-300 font-bold py-4 rounded-xl border border-slate-700 mb-3 transition active:scale-95">返回游戏</button>
+                    
+                    <button 
+                        onClick={uploadScores}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-900/50 transition active:scale-95 flex items-center justify-center space-x-2"
+                    >
+                        <Icon name="upload-cloud" className="w-5 h-5" />
+                        <span>上传统计分值！</span>
+                    </button>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen flex justify-center bg-slate-950">
+                    <div className="w-full max-w-md h-screen max-h-screen flex flex-col relative sm:border-x sm:border-slate-800">
+                        <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 w-full z-20 flex-shrink-0"></div>
+                        <div className="flex-1 p-6 overflow-hidden flex flex-col">
+                            {phase === 'setup' && renderSetup()}
+                            {phase === 'day' && renderDay()}
+                            {phase === 'voting' && renderVoting()}
+                            {phase === 'result' && renderResult()}
+                            {phase === 'settlement' && renderSettlement()}
+                            {phase === 'campaign' && renderCampaign()}
+                        </div>
+
+                        {/* 死因选择弹窗 */}
+                        {deathMenuId && (
+                            <div className="absolute inset-0 z-[100] flex items-center justify-center p-6 animate-fade-in">
+                                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setDeathMenuId(null)}></div>
+                                <div className="relative w-full max-w-xs bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl shadow-black">
+                                    <h3 className="text-xl font-bold text-white mb-6 text-center">选择 {players.find(p => p.id === deathMenuId)?.name} 的死因</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {['毒杀', '枪杀', '放逐', '狼刀', '狼技', '自爆'].map(cause => (
+                                            <button
+                                                key={cause}
+                                                onClick={() => confirmDeath(deathMenuId, cause)}
+                                                className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-xl border border-slate-700 transition active:scale-95"
+                                            >
+                                                {cause}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button 
+                                        onClick={() => setDeathMenuId(null)}
+                                        className="mt-6 w-full py-3 text-slate-500 font-medium hover:text-slate-300 transition"
+                                    >
+                                        取消
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
