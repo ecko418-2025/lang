@@ -71,7 +71,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         '毒杀': 'dusha.png',
         '放逐': 'fangzu.png',
         '枪杀': 'qiangsha.png',
-        '狼技': 'langji.png'
+        '狼技': 'langji.png',
+        '自爆': 'langji.png'
       };
       if (deathIcons[seatData.death_cause]) {
         deathIconHtml = `<img src="assets/${deathIcons[seatData.death_cause]}" class="death-icon" alt="${seatData.death_cause}">`;

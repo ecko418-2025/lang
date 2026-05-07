@@ -782,7 +782,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
       // Map Tom Select value back to the hidden select so syncSeats() can read it
-      ts.on('change', (val) => { playerSelectEl.value = val; });
+      function updatePlayerSelectColor(tsInstance) {
+        const val = tsInstance.getValue();
+        console.log('Seat value:', val);
+        if (val && val !== "") {
+          tsInstance.control.style.setProperty('background-color', '#eff6ff', 'important');
+        } else {
+          tsInstance.control.style.setProperty('background-color', 'white', 'important');
+        }
+      }
+
+      ts.on('change', (val) => { 
+        playerSelectEl.value = val; 
+        updatePlayerSelectColor(ts);
+      });
+
+      setTimeout(() => updatePlayerSelectColor(ts), 100);
     });
   }
 
