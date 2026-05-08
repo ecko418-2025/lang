@@ -519,7 +519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const historyEntry = {
         setup_name: currentGameState.setup_name || '未命名版型',
         victory_status: victoryStatus || '未知',
-        date_text: new Date().toISOString().split('T')[0],
+        date_text: new Date().toLocaleDateString('en-CA'), // Get local YYYY-MM-DD
         results: results,
         mvp: mvpSeat,
         svp: svpSeat,
@@ -539,7 +539,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw error;
       }
 
-      alert('本局统计数据已成功存储到历史记录！');
+      // --- Feishu Cloud Backup (Automatic) ---
+      try {
+        btnSaveHistory.innerText = '正在备份至飞书...';
+        
+        const FEISHU_CONFIG = {
+          appId: 'cli_a97758782db95cc9',
+          appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+          appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+          tableId: 'tblOaCkcls4jOxwS'
+        };
+
+        const resultRecords = results.map(res => {
+          let tag = '';
+          if (mvpSeat === res.seat_number) tag = 'MVP';
+          else if (svpSeat === res.seat_number) tag = 'SVP';
+          else if (scapegoatSeat === res.seat_number) tag = '背锅';
+
+          const victoryText = victoryStatus === '好人胜利' ? '好人胜' : (victoryStatus === '狼人胜利' ? '狼人胜' : '未知');
+
+          return {
+            "时间": String(new Date().toLocaleString()),
+            "座位": String(res.seat_number || '0'),
+            "玩家": String(res.player_name || '未知'),
+            "玩家 ID": String(res.player_id || '0').padStart(3, '0'),
+            "身份": String(res.identity || '未知'),
+            "标签": String(tag || ''),
+            "得分": String(res.final_score || '0'),
+            "对局版型": String(historyEntry.setup_name),
+            "胜负": String(victoryText)
+          };
+        });
+
+        const feishuRes = await fetch('http://localhost:3000/api/feishu-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config: FEISHU_CONFIG, fields: resultRecords })
+        });
+
+        const feishuResult = await feishuRes.json();
+        if (feishuResult.success) {
+          alert('本局统计已成功存储并备份至飞书！');
+        } else {
+          console.error('Feishu Sync Error:', feishuResult);
+          alert('数据已存入本地历史记录，但飞书备份失败: ' + (feishuResult.message || '格式不匹配'));
+        }
+      } catch (fErr) {
+        console.error('Feishu Process Error:', fErr);
+        alert('本地存储成功，但飞书备份时发生网络错误（请确保 Proxy Server 已启动）。');
+      }
+      // --- End Feishu Sync ---
     } catch (err) {
       alert('存储失败: ' + err.message);
     } finally {

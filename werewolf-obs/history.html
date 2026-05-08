@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- Supabase JS -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://jsd.onmicrosoft.cn/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body {
@@ -239,8 +239,10 @@
                   </tbody>
                 </table>
               </div>
-              <div class="mt-4 flex justify-end">
-                  <button class="text-xs text-red-600 hover:underline" onclick="deleteEntry(${game.id})">删除此条记录</button>
+              <div class="mt-4 flex justify-end gap-4 items-center">
+                  <button class="text-[11px] text-blue-600 font-bold hover:underline" onclick="uploadToFeishu(${game.id})">同步到飞书</button>
+                  <div class="w-px h-3 bg-gray-200"></div>
+                  <button class="text-[11px] text-red-600 hover:underline" onclick="deleteEntry(${game.id})">删除此条记录</button>
               </div>
             `;
             content.appendChild(card);
@@ -257,6 +259,56 @@
         const { error } = await supabase.from('game_history').delete().eq('id', id);
         if (error) alert('删除失败');
         else loadHistory();
+      };
+
+      window.uploadToFeishu = async (gameId) => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        try {
+          btn.disabled = true;
+          btn.textContent = '同步中...';
+          const { data: game } = await supabase.from('game_history').select('*').eq('id', gameId).single();
+          
+          const FEISHU_CONFIG = {
+            appId: 'cli_a97758782db95cc9',
+            appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+            appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+            tableId: 'tblOaCkcls4jOxwS'
+          };
+
+          const resultRecords = game.results.map(res => {
+            let tag = '';
+            if (game.mvp === res.seat_number) tag = 'MVP';
+            else if (game.svp === res.seat_number) tag = 'SVP';
+            else if (game.scapegoat === res.seat_number) tag = '背锅';
+            const victoryText = game.victory_status === '好人胜利' ? '好人胜' : (game.victory_status === '狼人胜利' ? '狼人胜' : '未知');
+            return {
+              "时间": String(new Date(game.created_at).toLocaleString()),
+              "座位": String(res.seat_number || '0'),
+              "玩家": String(res.player_name || '未知'),
+              "玩家 ID": String(res.player_id || '0').padStart(3, '0'),
+              "身份": String(res.identity || '未知'),
+              "标签": String(tag || ''),
+              "得分": String(res.final_score || '0'),
+              "对局版型": String(game.setup_name || '未命名对局'),
+              "胜负": String(victoryText || '未知')
+            };
+          });
+
+          const response = await fetch('http://localhost:3000/api/feishu-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: FEISHU_CONFIG, fields: resultRecords })
+          });
+          const result = await response.json();
+          if (result.success) alert('同步成功！');
+          else alert('同步失败: ' + result.message);
+        } catch (err) {
+          alert('同步报错: ' + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
       };
 
       elBtnRefresh.onclick = loadHistory;
