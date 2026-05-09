@@ -261,6 +261,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   elBtnAddPlayer.onclick = openAddModal;
   elSearchInput.oninput = filterAndRender;
 
+  // ---- Feishu Sync ----
+  const elBtnSyncFeishu = document.getElementById('btn-sync-feishu');
+  if (elBtnSyncFeishu) {
+    elBtnSyncFeishu.onclick = async () => {
+      const originalText = elBtnSyncFeishu.innerText;
+      try {
+        if (allPlayers.length === 0) return alert('当前没有玩家数据可同步');
+        if (!confirm(`确定要将当前 ${allPlayers.length} 名玩家信息同步至飞书吗？`)) return;
+
+        elBtnSyncFeishu.disabled = true;
+        elBtnSyncFeishu.innerText = '正在同步中...';
+
+        const FEISHU_CONFIG = {
+          appId: 'cli_a97758782db95cc9',
+          appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+          appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+          tableId: 'tblOWlC1AlJ4qAun' // 新表 ID
+        };
+
+        const records = allPlayers.map(p => ({
+          "玩家姓名": String(p.name || '未知'),
+          "玩家 ID": String(p.id || '0').padStart(3, '0'),
+          "头像链接": String(p.avatar_url || ''),
+          "更新时间": String(new Date().toLocaleString())
+        }));
+
+        const response = await fetch('http://localhost:3000/api/feishu-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config: FEISHU_CONFIG, fields: records })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          alert(`同步成功！已将 ${allPlayers.length} 名玩家资料上传至飞书。`);
+        } else {
+          alert('同步失败: ' + (result.message || '格式校验未通过'));
+        }
+      } catch (err) {
+        alert('同步报错: ' + err.message);
+      } finally {
+        elBtnSyncFeishu.disabled = false;
+        elBtnSyncFeishu.innerText = originalText;
+      }
+    };
+  }
+
   // Initial Load
   loadPlayers();
 });
