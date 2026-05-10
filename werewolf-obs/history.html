@@ -9,7 +9,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- Supabase JS -->
-  <script src="https://jsd.onmicrosoft.cn/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- CloudBase SDK -->
 
   <style>
     body {
@@ -31,6 +33,16 @@
     }
     .btn-primary:hover {
       background-color: #3e2723;
+    }
+    .btn-secondary {
+      background-color: #8D6E63;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background-color: #5D4037;
     }
     
     .history-card {
@@ -76,7 +88,7 @@
 <body class="p-6 font-sans min-h-screen">
   <div class="max-w-5xl mx-auto space-y-6">
     <!-- Header -->
-    <div class="flex justify-between items-center border-b-4 border-[#5D4037] pb-4 mb-8">
+    <div class="flex flex-col md:flex-row justify-between items-center border-b-4 border-[#5D4037] pb-4 mb-8 gap-4">
       <div class="flex items-center gap-4">
         <a href="admin.html" class="bg-[#8D6E63] text-white p-2 rounded-full hover:bg-[#5D4037] transition">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -85,7 +97,23 @@
         </a>
         <h1 class="text-4xl font-bold text-[#5D4037]">游戏结算历史统计</h1>
       </div>
-      <button id="btn-refresh" class="btn-primary">刷新数据</button>
+      
+      <div class="flex items-center gap-3">
+        <!-- Select All Toggle -->
+        <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border-2 border-[#8D6E63] shadow-sm hover:bg-gray-50 transition-colors h-[40px]">
+          <input type="checkbox" id="select-all-cb" class="w-4 h-4 cursor-pointer">
+          <label for="select-all-cb" class="text-sm font-bold text-[#5D4037] cursor-pointer select-none">全选</label>
+        </div>
+
+        <button id="btn-batch-sync" class="btn-primary h-[40px] px-4 text-sm font-bold flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+          同步至飞书
+        </button>
+        
+        <button id="btn-refresh" class="btn-secondary h-[40px] px-4 text-sm font-bold">刷新数据</button>
+      </div>
     </div>
 
     <!-- History List -->
@@ -100,8 +128,15 @@
       if (!window.supabaseClient) return;
       const supabase = window.supabaseClient;
 
+      // Initialize CloudBase - Not needed for direct fetch
+
       const elHistoryList = document.getElementById('history-list');
       const elBtnRefresh = document.getElementById('btn-refresh');
+      const elBtnBatchSync = document.getElementById('btn-batch-sync');
+      const elSelectAllCb = document.getElementById('select-all-cb');
+
+      let allGames = [];
+      let selectedGameIds = new Set();
 
       async function loadHistory() {
         elHistoryList.innerHTML = '<div class="py-20 text-center text-gray-500 italic">正在加载历史记录...</div>';
@@ -116,14 +151,19 @@
           return;
         }
 
-        if (!data || data.length === 0) {
+        allGames = data || [];
+        renderHistory();
+      }
+
+      function renderHistory() {
+        if (!allGames || allGames.length === 0) {
           elHistoryList.innerHTML = '<div class="py-20 text-center text-gray-500 italic">暂无历史记录，请在后台同步出战表后点击“存储”</div>';
           return;
         }
 
         // Grouping by Date
         const groups = {};
-        data.forEach(item => {
+        allGames.forEach(item => {
           const d = item.date_text || new Date(item.created_at).toISOString().split('T')[0];
           if (!groups[d]) groups[d] = [];
           groups[d].push(item);
@@ -141,7 +181,7 @@
           groupHeader.className = 'flex items-center gap-4 mb-4 cursor-pointer group';
           groupHeader.innerHTML = `
             <div class="h-px bg-[#8D6E63] flex-1"></div>
-            <h2 class="text-xl font-western font-bold text-[#5D4037] px-4 py-2 bg-white border-2 border-[#8D6E63] rounded-lg shadow-sm flex items-center gap-2">
+            <h2 class="text-xl font- western font-bold text-[#5D4037] px-4 py-2 bg-white border-2 border-[#8D6E63] rounded-lg shadow-sm flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
@@ -160,7 +200,6 @@
           };
 
           groups[dateKey].forEach(game => {
-            // Use the pools saved WITH this specific game
             const rolePools = game.role_pools || {};
             const wolfSet = split(rolePools.wolves);
             const godSet = split(rolePools.gods);
@@ -172,16 +211,15 @@
               if (wolfSet.has(r)) return 'identity-wolf';
               if (godSet.has(r)) return 'identity-god';
               if (villagerSet.has(r)) return 'identity-villager';
-              
-              // Keyword fallback
               const wolfRoles = ['恶灵骑士', '石像鬼', '血月使徒', '蚀日侍女', '噩梦之影', '寂夜导师', '狂爆恶魔', '梦魇', '大灰狼', '怪盗狼王'];
               if (r.includes('狼') || wolfRoles.includes(r)) return 'identity-wolf';
               if (r.includes('民')) return 'identity-villager';
               return 'identity-god'; 
             }
 
+            const isSelected = selectedGameIds.has(game.id);
             const card = document.createElement('div');
-            card.className = 'panel p-6 history-card';
+            card.className = `panel p-6 history-card relative transition-all ${isSelected ? 'ring-4 ring-blue-500 border-blue-500' : ''}`;
             
             let victoryClass = 'victory-other';
             if (game.victory_status === '好人胜利') victoryClass = 'victory-good';
@@ -192,7 +230,6 @@
             let tableRows = '';
             game.results.forEach(res => {
               const roleClass = getRoleClass(res.identity);
-              
               let titles = '';
               if (game.mvp === res.seat_number) titles += '<span class="title-badge badge-mvp">MVP</span>';
               if (game.svp === res.seat_number) titles += '<span class="title-badge badge-svp">SVP</span>';
@@ -201,11 +238,7 @@
               tableRows += `
                 <tr class="${res.final_score >= 5 ? 'bg-green-50' : ''}">
                   <td class="font-bold">${res.seat_number}</td>
-                  <td>
-                    ${res.player_name} 
-                    <span class="text-[10px] text-gray-400">(${res.player_id})</span>
-                    ${titles}
-                  </td>
+                  <td>${res.player_name} <span class="text-[10px] text-gray-400">(${res.player_id})</span>${titles}</td>
                   <td><span class="text-xs font-bold px-3 py-1 rounded-full ${roleClass}">${res.identity}</span></td>
                   <td class="text-gray-500 text-xs">${res.base_score}</td>
                   <td class="text-gray-500 text-xs">${res.correction > 0 ? '+' : ''}${res.correction}</td>
@@ -215,7 +248,11 @@
             });
 
             card.innerHTML = `
-              <div class="flex justify-between items-start mb-4">
+              <!-- Selection Checkbox -->
+              <div class="absolute top-4 left-4 z-10">
+                <input type="checkbox" class="game-select-cb w-5 h-5 cursor-pointer" data-id="${game.id}" ${isSelected ? 'checked' : ''}>
+              </div>
+              <div class="flex justify-between items-start mb-4 pl-8">
                 <div>
                   <h3 class="text-xl font-bold text-[#5D4037]">${game.setup_name}</h3>
                   <p class="text-xs text-gray-400">${timeStr}</p>
@@ -225,18 +262,9 @@
               <div class="overflow-x-auto">
                 <table>
                   <thead>
-                    <tr>
-                      <th>座位</th>
-                      <th>玩家</th>
-                      <th>身份</th>
-                      <th>基础分</th>
-                      <th>修正</th>
-                      <th>总计</th>
-                    </tr>
+                    <tr><th>座位</th><th>玩家</th><th>身份</th><th>基础分</th><th>修正</th><th>总计</th></tr>
                   </thead>
-                  <tbody>
-                    ${tableRows}
-                  </tbody>
+                  <tbody>${tableRows}</tbody>
                 </table>
               </div>
               <div class="mt-4 flex justify-end gap-4 items-center">
@@ -245,6 +273,20 @@
                   <button class="text-[11px] text-red-600 hover:underline" onclick="deleteEntry(${game.id})">删除此条记录</button>
               </div>
             `;
+
+            // Checkbox Change Logic
+            const cb = card.querySelector('.game-select-cb');
+            cb.onchange = (e) => {
+              if (e.target.checked) {
+                selectedGameIds.add(game.id);
+                card.classList.add('ring-4', 'ring-blue-500', 'border-blue-500');
+              } else {
+                selectedGameIds.delete(game.id);
+                card.classList.remove('ring-4', 'ring-blue-500', 'border-blue-500');
+              }
+              updateBatchSyncButton();
+            };
+
             content.appendChild(card);
           });
 
@@ -254,11 +296,35 @@
         });
       }
 
+      function updateBatchSyncButton() {
+        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>`;
+        if (selectedGameIds.size > 0) {
+          elBtnBatchSync.innerHTML = `${svgIcon} 同步选中 (${selectedGameIds.size})`;
+        } else {
+          elBtnBatchSync.innerHTML = `${svgIcon} 同步至飞书`;
+        }
+      }
+
+      elSelectAllCb.onchange = (e) => {
+        if (e.target.checked) {
+          allGames.forEach(g => selectedGameIds.add(g.id));
+        } else {
+          selectedGameIds.clear();
+        }
+        renderHistory();
+        updateBatchSyncButton();
+      };
+
       window.deleteEntry = async (id) => {
         if (!confirm('确定要删除这条历史记录吗？')) return;
         const { error } = await supabase.from('game_history').delete().eq('id', id);
         if (error) alert('删除失败');
-        else loadHistory();
+        else {
+          allGames = allGames.filter(g => g.id !== id);
+          selectedGameIds.delete(id);
+          renderHistory();
+          updateBatchSyncButton();
+        }
       };
 
       window.uploadToFeishu = async (gameId) => {
@@ -267,14 +333,8 @@
         try {
           btn.disabled = true;
           btn.textContent = '同步中...';
-          const { data: game } = await supabase.from('game_history').select('*').eq('id', gameId).single();
-          
-          const FEISHU_CONFIG = {
-            appId: 'cli_a97758782db95cc9',
-            appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
-            appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
-            tableId: 'tblOaCkcls4jOxwS'
-          };
+          const game = allGames.find(g => g.id === gameId);
+          if (!game) throw new Error('对局数据未找到');
 
           const resultRecords = game.results.map(res => {
             let tag = '';
@@ -295,6 +355,13 @@
             };
           });
 
+          const FEISHU_CONFIG = {
+            appId: 'cli_a97758782db95cc9',
+            appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+            appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+            tableId: 'tblOaCkcls4jOxwS'
+          };
+
           const response = await fetch('http://localhost:3000/api/feishu-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -308,6 +375,70 @@
         } finally {
           btn.disabled = false;
           btn.textContent = originalText;
+        }
+      };
+
+      elBtnBatchSync.onclick = async () => {
+        if (selectedGameIds.size === 0) return alert('请先勾选需要同步的对局');
+        if (!confirm(`确定要同步选中的 ${selectedGameIds.size} 场对局至飞书吗？`)) return;
+
+        const originalHTML = elBtnBatchSync.innerHTML;
+        try {
+          elBtnBatchSync.disabled = true;
+          elBtnBatchSync.innerText = '批量同步中...';
+
+          const selectedGames = allGames.filter(g => selectedGameIds.has(g.id));
+          let allRecords = [];
+
+          selectedGames.forEach(game => {
+            const gameRecords = game.results.map(res => {
+              let tag = '';
+              if (game.mvp === res.seat_number) tag = 'MVP';
+              else if (game.svp === res.seat_number) tag = 'SVP';
+              else if (game.scapegoat === res.seat_number) tag = '背锅';
+              const victoryText = game.victory_status === '好人胜利' ? '好人胜' : (game.victory_status === '狼人胜利' ? '狼人胜' : '未知');
+              return {
+                "时间": String(new Date(game.created_at).toLocaleString()),
+                "座位": String(res.seat_number || '0'),
+                "玩家": String(res.player_name || '未知'),
+                "玩家 ID": String(res.player_id || '0').padStart(3, '0'),
+                "身份": String(res.identity || '未知'),
+                "标签": String(tag || ''),
+                "得分": String(res.final_score || '0'),
+                "对局版型": String(game.setup_name || '未命名对局'),
+                "胜负": String(victoryText || '未知')
+              };
+            });
+            allRecords = allRecords.concat(gameRecords);
+          });
+
+          const FEISHU_CONFIG = {
+            appId: 'cli_a97758782db95cc9',
+            appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+            appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+            tableId: 'tblOaCkcls4jOxwS'
+          };
+
+          const response = await fetch('http://localhost:3000/api/feishu-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: FEISHU_CONFIG, fields: allRecords })
+          });
+          const result = await response.json();
+          if (result.success) {
+            alert(`批量同步成功！共同步 ${selectedGameIds.size} 场对局。`);
+            selectedGameIds.clear();
+            elSelectAllCb.checked = false;
+            renderHistory();
+            updateBatchSyncButton();
+          } else {
+            alert('同步失败: ' + result.message);
+          }
+        } catch (err) {
+          alert('同步报错: ' + err.message);
+        } finally {
+          elBtnBatchSync.disabled = false;
+          elBtnBatchSync.innerHTML = originalHTML;
         }
       };
 

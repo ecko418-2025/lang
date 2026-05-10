@@ -6,6 +6,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  const FEISHU_CONFIG = {
+    appId: 'cli_a97758782db95cc9',
+    appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+    appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+    tableId: 'tblOaCkcls4jOxwS'
+  };
+
   const supabase = window.supabaseClient;
   const GAME_STATE_ID = 1;
 
@@ -543,13 +550,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         btnSaveHistory.innerText = '正在备份至飞书...';
         
-        const FEISHU_CONFIG = {
-          appId: 'cli_a97758782db95cc9',
-          appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
-          appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
-          tableId: 'tblOaCkcls4jOxwS'
-        };
-
         const resultRecords = results.map(res => {
           let tag = '';
           if (mvpSeat === res.seat_number) tag = 'MVP';
@@ -581,11 +581,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (feishuResult.success) {
           alert('本局统计已成功存储并备份至飞书！');
         } else {
-          console.error('Feishu Sync Error:', feishuResult);
           alert('数据已存入本地历史记录，但飞书备份失败: ' + (feishuResult.message || '格式不匹配'));
         }
       } catch (fErr) {
-        console.error('Feishu Process Error:', fErr);
         alert('本地存储成功，但飞书备份时发生网络错误（请确保 Proxy Server 已启动）。');
       }
       // --- End Feishu Sync ---

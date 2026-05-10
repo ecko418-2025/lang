@@ -8,12 +8,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const supabase = window.supabaseClient;
 
+  // Initialize CloudBase - Not needed for direct fetch
+
   // State
   let allPlayers = [];
   let filteredPlayers = [];
   let cropper = null;
   let croppedBlob = null;
   let isEditing = false;
+  let selectedPlayerIds = new Set(); // Track selected player IDs
 
   // DOM Elements
   const elPlayersGrid = document.getElementById('players-grid');
@@ -75,10 +78,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     elPlayersGrid.innerHTML = '';
     filteredPlayers.forEach(p => {
       const avatarUrl = p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=ccc&color=fff`;
+      const isSelected = selectedPlayerIds.has(p.id);
       
       const card = document.createElement('div');
-      card.className = 'panel p-4 flex flex-col items-center space-y-4 player-card bg-white';
+      card.className = `panel p-4 flex flex-col items-center space-y-4 player-card bg-white relative transition-all ${isSelected ? 'ring-4 ring-blue-500 border-blue-500' : ''}`;
       card.innerHTML = `
+        <!-- Selection Checkbox -->
+        <div class="absolute top-3 left-3 z-10">
+          <input type="checkbox" class="player-select-cb w-5 h-5 cursor-pointer" data-id="${p.id}" ${isSelected ? 'checked' : ''}>
+        </div>
+
         <img src="${avatarUrl}" class="w-24 h-24 rounded-full object-cover border-4 border-[#8D6E63] shadow-inner bg-gray-50">
         <div class="text-center">
           <div class="font-bold text-xl">${p.name}</div>
@@ -90,12 +99,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       `;
       
-      // Event Listeners
+      // Checkbox Change Logic
+      const cb = card.querySelector('.player-select-cb');
+      cb.onchange = (e) => {
+        if (e.target.checked) {
+          selectedPlayerIds.add(p.id);
+          card.classList.add('ring-4', 'ring-blue-500', 'border-blue-500');
+        } else {
+          selectedPlayerIds.delete(p.id);
+          card.classList.remove('ring-4', 'ring-blue-500', 'border-blue-500');
+        }
+        updateSyncButtonState();
+      };
+
+      // Event Listeners for buttons
       card.querySelector('.edit-btn').onclick = () => openEditModal(p);
       card.querySelector('.delete-btn').onclick = () => handleDelete(p.id, p.name);
       
       elPlayersGrid.appendChild(card);
     });
+  }
+
+  function updateSyncButtonState() {
+    const elBtnSyncFeishu = document.getElementById('btn-sync-feishu');
+    if (elBtnSyncFeishu) {
+      // Preserve the SVG icon while updating text
+      const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>`;
+      
+      if (selectedPlayerIds.size > 0) {
+        elBtnSyncFeishu.innerHTML = `${svgIcon} 同步选中 (${selectedPlayerIds.size})`;
+        elBtnSyncFeishu.classList.remove('opacity-50', 'cursor-not-allowed');
+        elBtnSyncFeishu.disabled = false;
+      } else {
+        elBtnSyncFeishu.innerHTML = `${svgIcon} 同步至飞书`;
+        elBtnSyncFeishu.disabled = false;
+      }
+    }
   }
 
   // ---- Modal Logic ----
@@ -267,25 +306,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     elBtnSyncFeishu.onclick = async () => {
       const originalText = elBtnSyncFeishu.innerText;
       try {
-        if (allPlayers.length === 0) return alert('当前没有玩家数据可同步');
-        if (!confirm(`确定要将当前 ${allPlayers.length} 名玩家信息同步至飞书吗？`)) return;
+        // Determine which players to sync
+        let playersToSync = [];
+        if (selectedPlayerIds.size > 0) {
+          playersToSync = allPlayers.filter(p => selectedPlayerIds.has(p.id));
+        } else {
+          playersToSync = allPlayers;
+        }
+
+        if (playersToSync.length === 0) return alert('当前没有玩家数据可同步');
+        const confirmMsg = selectedPlayerIds.size > 0 
+          ? `确定要同步选中的 ${playersToSync.length} 名玩家信息至飞书吗？`
+          : `您未勾选任何选手，确定要同步“全员” (${playersToSync.length} 名) 吗？`;
+        
+        if (!confirm(confirmMsg)) return;
 
         elBtnSyncFeishu.disabled = true;
         elBtnSyncFeishu.innerText = '正在同步中...';
 
-        const FEISHU_CONFIG = {
-          appId: 'cli_a97758782db95cc9',
-          appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
-          appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
-          tableId: 'tblOWlC1AlJ4qAun' // 新表 ID
-        };
-
-        const records = allPlayers.map(p => ({
+        const records = playersToSync.map(p => ({
           "玩家姓名": String(p.name || '未知'),
           "玩家 ID": String(p.id || '0').padStart(3, '0'),
           "头像链接": String(p.avatar_url || ''),
           "更新时间": String(new Date().toLocaleString())
         }));
+
+        const FEISHU_CONFIG = {
+          appId: 'cli_a97758782db95cc9',
+          appSecret: '5OSZq6riErmGUOiCT1CV8b5DZtIOhddy',
+          appToken: 'XKHGbfUJSaKp8Kse4MQczYyTnNg',
+          tableId: 'tblOWlC1AlJ4qAun'
+        };
 
         const response = await fetch('http://localhost:3000/api/feishu-upload', {
           method: 'POST',
@@ -295,7 +346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const result = await response.json();
         if (result.success) {
-          alert(`同步成功！已将 ${allPlayers.length} 名玩家资料上传至飞书。`);
+          alert(`同步成功！已将 ${playersToSync.length} 名玩家资料上传至飞书。`);
         } else {
           alert('同步失败: ' + (result.message || '格式校验未通过'));
         }
@@ -305,6 +356,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         elBtnSyncFeishu.disabled = false;
         elBtnSyncFeishu.innerText = originalText;
       }
+    };
+  }
+
+  // ---- Select All Logic ----
+  const elSelectAllCb = document.getElementById('select-all-cb');
+  if (elSelectAllCb) {
+    elSelectAllCb.onchange = (e) => {
+      const isChecked = e.target.checked;
+      if (isChecked) {
+        // Select all filtered players
+        filteredPlayers.forEach(p => selectedPlayerIds.add(p.id));
+      } else {
+        // Deselect all filtered players
+        filteredPlayers.forEach(p => selectedPlayerIds.delete(p.id));
+      }
+      renderPlayers(); // Re-render to show visual feedback
+      updateSyncButtonState();
     };
   }
 
