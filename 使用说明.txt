@@ -1,0 +1,43 @@
+=========================================
+      狼人杀助手 (Werewolf Scoreboard)
+            使用与部署说明书
+=========================================
+
+本系统由“前端网页”、“云端数据库(Supabase)”以及“本地飞书同步代理”三部分组成。
+
+一、 本地快速启动步骤
+------------------
+1. 确保已安装 Node.js 环境。
+2. 在本项目根目录下打开终端 (Terminal / Cmd)。
+3. 输入以下命令启动同步服务：
+   node server.js
+4. 看到“本地代理已启动”提示后，双击打开 werewolf-obs/admin.html 即可开始使用。
+
+二、 线上访问地址 (云端)
+------------------
+即便不打开本地文件，您也可以通过以下网址直接访问（需保持本地 server.js 运行才能同步飞书）：
+
+- 管理后台：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/admin.html
+- 历史战报：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/history.html
+- 玩家管理：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/players.html
+
+三、 迁移到新电脑 (如 Windows)
+---------------------------
+如果您需要换一台电脑使用，请按以下步骤操作：
+
+1. 拷贝整个项目文件夹到新电脑。
+2. 在新电脑上安装 Node.js (官网：nodejs.org)。
+3. 在项目根目录打开命令行，执行依赖安装：
+   npm install
+4. 安装完成后，启动服务：
+   node server.js
+5. 之后即可正常使用同步功能。
+
+四、 注意事项
+-----------
+1. 同步失败：请检查终端里的 server.js 是否意外关闭。
+2. 数据未更新：线上版本若有延迟，请尝试在浏览器按 Cmd+Shift+R (Mac) 或 Ctrl+F5 (Win) 强制刷新。
+3. 飞书配置：如需修改飞书表格 ID，请在 admin.js 和 server.js 中同步修改 FEISHU_CONFIG。
+
+---
+最后更新时间：2026-05-10
