@@ -326,9 +326,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const records = playersToSync.map(p => ({
           "玩家姓名": String(p.name || '未知'),
-          "玩家 ID": String(p.id || '0').padStart(3, '0'),
-          "头像链接": String(p.avatar_url || ''),
-          "更新时间": String(new Date().toLocaleString())
+          "ID": String(p.id || '0').padStart(3, '0'),
+          "头像链接": String(p.avatar_url || '')
         }));
 
         const FEISHU_CONFIG = {

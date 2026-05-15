@@ -18,8 +18,10 @@ app.post('/api/feishu-upload', async (req, res) => {
     try {
         const body = req.body;
         const records = body.fields || [];
-        const appToken = body.appToken || DEFAULT_APP_TOKEN;
-        const tableId = body.tableId || DEFAULT_TABLE_ID;
+        
+        // 优先从 body.config 中读取配置，如果没有则从根目录读取，最后使用默认值
+        const appToken = (body.config && body.config.appToken) || body.appToken || DEFAULT_APP_TOKEN;
+        const tableId = (body.config && body.config.tableId) || body.tableId || DEFAULT_TABLE_ID;
 
         if (records.length === 0) {
             return res.json({ success: false, message: '没有数据可同步' });
