@@ -337,7 +337,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           tableId: 'tblOWlC1AlJ4qAun'
         };
 
-        const response = await fetch('http://localhost:3000/api/feishu-upload', {
+        const SYNC_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') 
+          ? 'http://localhost:3000/api/feishu-upload' 
+          : 'https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/feishu-proxy';
+
+        const response = await fetch(SYNC_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ config: FEISHU_CONFIG, fields: records })
@@ -347,7 +351,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (result.success) {
           alert(`同步成功！已将 ${playersToSync.length} 名玩家资料上传至飞书。`);
         } else {
-          alert('同步失败: ' + (result.message || '格式校验未通过'));
+          const detailMsg = result.detail ? ('\n详情: ' + JSON.stringify(result.detail)) : '';
+          alert('同步失败: ' + (result.message || '格式校验未通过') + detailMsg);
         }
       } catch (err) {
         alert('同步报错: ' + err.message);

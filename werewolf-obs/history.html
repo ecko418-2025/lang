@@ -362,7 +362,11 @@
             tableId: 'tblOaCkcls4jOxwS'
           };
 
-          const response = await fetch('http://localhost:3000/api/feishu-upload', {
+          const SYNC_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') 
+            ? 'http://localhost:3000/api/feishu-upload' 
+            : 'https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/feishu-proxy';
+
+          const response = await fetch(SYNC_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ config: FEISHU_CONFIG, fields: resultRecords })

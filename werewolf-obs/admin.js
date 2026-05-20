@@ -571,7 +571,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           };
         });
 
-        const feishuRes = await fetch('http://localhost:3000/api/feishu-upload', {
+        const SYNC_URL = (window.location.hostname === 'localhost' || window.location.protocol === 'file:') 
+          ? 'http://localhost:3000/api/feishu-upload' 
+          : 'https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/feishu-proxy';
+
+        const feishuRes = await fetch(SYNC_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ config: FEISHU_CONFIG, fields: resultRecords })
@@ -581,7 +585,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (feishuResult.success) {
           alert('本局统计已成功存储并备份至飞书！');
         } else {
-          alert('数据已存入本地历史记录，但飞书备份失败: ' + (feishuResult.message || '格式不匹配'));
+          const detailMsg = feishuResult.detail ? ('\n详情: ' + JSON.stringify(feishuResult.detail)) : '';
+          alert('数据已存入本地历史记录，但飞书备份失败: ' + (feishuResult.message || '格式不匹配') + detailMsg);
         }
       } catch (fErr) {
         alert('本地存储成功，但飞书备份时发生网络错误（请确保 Proxy Server 已启动）。');
