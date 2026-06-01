@@ -17,9 +17,12 @@
 ------------------
 即便不打开本地文件，您也可以通过以下网址直接访问（需保持本地 server.js 运行才能同步飞书）：
 
+- 系统主页：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/index.html
 - 管理后台：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/admin.html
 - 历史战报：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/history.html
 - 玩家管理：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/players.html
+- 准备大屏：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/werewolf-obs/standby.html
+- 投票页面：https://cloud1-d2gpq0fat0dd3c17f-1428383052.tcloudbaseapp.com/vote/index.html
 
 三、 迁移到新电脑 (如 Windows)
 ---------------------------
@@ -39,5 +42,14 @@
 2. 数据未更新：线上版本若有延迟，请尝试在浏览器按 Cmd+Shift+R (Mac) 或 Ctrl+F5 (Win) 强制刷新。
 3. 飞书配置：如需修改飞书表格 ID，请在 admin.js 和 server.js 中同步修改 FEISHU_CONFIG。
 
+五、 技术栈与平台配置
+------------------
+本项目涉及以下前后端技术与平台服务：
+1. 前端网页：纯静态 HTML + CSS + JavaScript (原生 JS)。
+2. 网页托管：部署挂载在 腾讯云开发 (Tencent CloudBase) 的静态网站托管空间。
+3. 云端主数据库：使用 Supabase 提供云端数据存储及接口能力。
+4. 业务数据同步：通过 飞书开放平台 将战报记录同步至飞书多维表格 (Bitable)。
+5. 本地代理服务：基于 Node.js + Express 搭建，主要用于向飞书发起受鉴权的 API 请求。
+
 ---
-最后更新时间：2026-05-10
+最后更新时间：2026-06-01
