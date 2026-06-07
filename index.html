@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lang 项目入口</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #111827;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    main {
+      width: min(100%, 720px);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 5vw, 44px);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 28px;
+      color: #cbd5e1;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .links {
+      display: grid;
+      gap: 14px;
+    }
+
+    a {
+      display: block;
+      padding: 18px 20px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f8fafc;
+      text-decoration: none;
+      background: #1f2937;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    a:hover,
+    a:focus-visible {
+      background: #243244;
+      border-color: #38bdf8;
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    span {
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Lang 项目入口</h1>
+    <p>请选择要打开的页面。</p>
+    <div class="links">
+      <a href="./vote/">
+        <strong>法官助手</strong>
+        <span>进入投票与房间管理页面</span>
+      </a>
+      <a href="./werewolf-obs/">
+        <strong>直播画面展示</strong>
+        <span>进入 OBS 直播展示页面</span>
+      </a>
+    </div>
+  </main>
+</body>
+</html>
